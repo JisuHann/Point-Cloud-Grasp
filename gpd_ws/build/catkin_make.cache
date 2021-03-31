@@ -1,0 +1,2 @@
+gpd_ros
+-DCATKIN_DEVEL_PREFIX=/home/min/gpd_ws/devel -DCMAKE_INSTALL_PREFIX=/home/min/gpd_ws/install -G Unix Makefiles

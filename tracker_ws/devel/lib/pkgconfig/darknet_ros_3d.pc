@@ -1,0 +1,8 @@
+prefix=/home/min/tracker_ws/devel
+
+Name: darknet_ros_3d
+Description: Description of darknet_ros_3d
+Version: 0.0.0
+Cflags: -I/home/min/tracker_ws/src/gb_visual_detection_3d-melodic/darknet_ros_3d/include
+Libs: -L${prefix}/lib -ldarknet_ros_3d
+Requires: 

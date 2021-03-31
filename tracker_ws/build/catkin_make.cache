@@ -1,0 +1,2 @@
+darknet_ros/darknet_ros:darknet_ros/darknet_ros_msgs:gb_visual_detection_3d-melodic/darknet_ros_3d:gb_visual_detection_3d_msgs-melodic:roi_extractor
+-DCATKIN_DEVEL_PREFIX=/home/min/tracker_ws/devel -DCMAKE_INSTALL_PREFIX=/home/min/tracker_ws/install -G Unix Makefiles
