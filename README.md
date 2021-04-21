@@ -1,11 +1,11 @@
 # Point Cloud Grasp
 
-<p align="center">
+<p align="left">
   <a href="## Project Overview">Project Overview</a> •
-  <a href="## How To Use">How To Use</a> •
+  <a href="## How to Use">How To Use</a> •
   <a href="## Contributors">Contributors</a> •
   <a href="## References">References</a> •
-  <a href="## license">License</a> 
+  <a href="## License">License</a> 
 </p>
 
 ## Project Overview
@@ -21,9 +21,9 @@
 ### Demonstration  
 
 
-## How to Use 
+## How to Use
 
-## Contributors 
+## Contributors
 이동규 [@Doroco](https://github.com/Doroco)  
 한지수 [@JisuHann](https://github.com/JisuHann)  
 
