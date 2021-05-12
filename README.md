@@ -1,7 +1,9 @@
 # A Method of Selecting Optimal Inverse Kinematics Solution of Redundant Manipulator for Grasping Door Handle Based-On Object Recognition    
 객체인식 기반 손잡이 파지를 위한 최적의 역기구학 해 선정 알고리즘
 <p align="left">
-  <a href="## Project Overview">Paper</a> •
+  <a href="">Paper</a> •
+  <a href="">Poster</a> •
+  <a href="">Presentation Video</a> •
   <a href="https://github.com/JisuHann/Point-Cloud-Grasp">Github</a> 
 </p>
 
