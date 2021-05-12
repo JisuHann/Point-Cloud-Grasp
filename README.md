@@ -1,4 +1,5 @@
-# Point Cloud Grasp
+# A Method of Selecting Optimal Inverse Kinematics Solution of Redundant Manipulator for Grasping Door Handle Based-On Object Recognition    
+객체인식 기반 손잡이 파지를 위한 최적의 역기구학 해 선정 알고리즘
 <p align="left">
   <a href="## Project Overview">Paper</a> •
   <a href="https://github.com/JisuHann/Point-Cloud-Grasp">Github</a> 
@@ -18,11 +19,12 @@
 역기구학 해는 매니퓰레이터의 조작도와 손잡이 회전축과 파지점 사이의 거리를 고려한 목적 함수의 비교를 통해 선정됩니다.    
 제안된 알고리즘을 Franka Panda로봇 팔에 적용하여 그 결과를 시뮬레이션을 통해서 성능을 평가합니다. 
 
-### Algorithm Pseudo Code
+### Algorithm
+알고리즘 의사 코드는 다음과 같습니다.     
 <img src = "./algorithm.png" width="650">
 
 ### Demonstration  
-
+<img src = "./simulation.png" width="650">
 
 ## How to Use
 본 연구는 Ubuntu 18.04 / ROS Melodic 환경에서 실행되었습니다.
