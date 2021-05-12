@@ -25,7 +25,7 @@
 <img src = "./algorithm.png" width="650">
 
 ### Demonstration  
-<img src = "./simulation.png" width="650">. 
+<img src = "./simulation.png" width="400">. 
 
 </div>
 
