@@ -121,7 +121,9 @@ catkin_package(
 set(SRCS
 #    ${CMAKE_CURRENT_SOURCE_DIR}/src/gripper.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/sampling/antipodal.cpp
+
     ${CMAKE_CURRENT_SOURCE_DIR}/src/sampling/candidates_generator.cpp
+
     ${CMAKE_CURRENT_SOURCE_DIR}/src/sampling/cloud_camera.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/sampling/eigen_utils.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/sampling/finger_hand.cpp
@@ -136,7 +138,9 @@ set(SRCS
 set(HEADS
 #    ${CMAKE_CURRENT_SOURCE_DIR}/include/roi_extractor/gripper.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/roi_extractor/sampling/antipodal.h
+    
     ${CMAKE_CURRENT_SOURCE_DIR}/include/roi_extractor/sampling/candidates_generator.h
+    
     ${CMAKE_CURRENT_SOURCE_DIR}/include/roi_extractor/sampling/cloud_camera.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/roi_extractor/sampling/eigen_utils.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/roi_extractor/sampling/finger_hand.h

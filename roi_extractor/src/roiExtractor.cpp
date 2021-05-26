@@ -65,9 +65,6 @@ void rcv_cloud (const sensor_msgs::PointCloud2ConstPtr& msg)
     {
         g_cloud = cloud_publish;
     }
-
-    //echo publish clouds
-    //g_pub_clone.publish(g_cloud);
     
 }
 
@@ -188,7 +185,5 @@ int main(int argc, char **argv)
     g_pub_test = nh.advertise<sensor_msgs::PointCloud2>("/DEBUG/FilteredCloud", 1);
 
     // Create a Ros Srv for plane Equation ax+by+cz+d = 0
-    //ros::ServiceServer service = nh.advertiseService("/roiExtractor", extractRoi);
-    //spin
     ros::spin();
 }
