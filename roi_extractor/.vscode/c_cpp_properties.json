@@ -1,0 +1,49 @@
+{
+    "configurations": [
+        {
+            "browse": {
+                "databaseFilename": "",
+                "limitSymbolsToIncludedHeaders": true
+            },
+            "includePath": [
+                "/home/dyros/catkin_ws/devel/include/**",
+                "/opt/ros/melodic/include/**",
+                "/home/dyros/catkin_ws/src/advanced_robotics_franka_controllers/include/**",
+                "/home/dyros/catkin_ws/src/ar_track_alvar/ar_track_alvar/include/**",
+                "/home/dyros/catkin_ws/src/snu_assembly/assembly_dual_controllers/include/**",
+                "/home/dyros/catkin_ws/src/snu_assembly/assembly_dummy_controller/include/**",
+                "/home/dyros/catkin_ws/src/constrained_motion_planning/include/**",
+                "/home/dyros/catkin_ws/src/darknet_ros/darknet_ros/include/**",
+                "/home/dyros/catkin_ws/src/fgpg/include/**",
+                "/home/dyros/catkin_ws/src/franka_ros/franka_control/include/**",
+                "/home/dyros/catkin_ws/src/franka_ros/franka_example_controllers/include/**",
+                "/home/dyros/catkin_ws/src/franka_ros/franka_gripper/include/**",
+                "/home/dyros/catkin_ws/src/franka_ros/franka_hw/include/**",
+                "/home/dyros/catkin_ws/src/franka_state_publisher/include/**",
+                "/home/dyros/catkin_ws/src/husky_robot/husky_base/include/**",
+                "/home/dyros/catkin_ws/src/husky_control_ilqg/include/**",
+                "/home/dyros/catkin_ws/src/iai_kinect2/kinect2_bridge/include/**",
+                "/home/dyros/catkin_ws/src/iai_kinect2/kinect2_calibration/include/**",
+                "/home/dyros/catkin_ws/src/iai_kinect2/kinect2_registration/include/**",
+                "/home/dyros/catkin_ws/src/mobile_manipulator_motion_planner/include/**",
+                "/home/dyros/catkin_ws/src/etherdaq_ros/include/**",
+                "/home/dyros/catkin_ws/src/pickit_practice/include/**",
+                "/home/dyros/catkin_ws/src/roi_extractor/include/**",
+                "/home/dyros/catkin_ws/src/stomp_ros/stomp_core/include/**",
+                "/home/dyros/catkin_ws/src/stomp_ros/stomp_moveit/include/**",
+                "/home/dyros/catkin_ws/src/stomp_ros/stomp_plugins/include/**",
+                "/home/dyros/catkin_ws/src/snu_assembly/test_dual_trajectory/include/**",
+                "/home/dyros/catkin_ws/src/trac_ik/trac_ik_kinematics_plugin/include/**",
+                "/home/dyros/catkin_ws/src/trac_ik/trac_ik_lib/include/**",
+                "/home/dyros/catkin_ws/src/triple_contact_planner/include/**",
+                "/usr/include/**"
+            ],
+            "name": "ROS",
+            "intelliSenseMode": "gcc-x64",
+            "compilerPath": "/usr/bin/clang",
+            "cStandard": "c11",
+            "cppStandard": "c++14"
+        }
+    ],
+    "version": 4
+}
