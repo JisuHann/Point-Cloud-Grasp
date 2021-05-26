@@ -13,6 +13,7 @@
 
 //  ros msgs Header
 #include <gb_visual_detection_3d_msgs/BoundingBoxes3d.h>
+
 #include <visualization_msgs/MarkerArray.h>
 #include <sensor_msgs/JointState.h>
 #include <sensor_msgs/PointCloud2.h>
@@ -25,8 +26,11 @@
 
 // PCL Header
 #include <pcl/conversions.h>
+#include <pcl_conversions/pcl_conversions.h>
+
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
+#include <pcl/io/pcd_io.h>
 
 #include <pcl/common/transforms.h>
 #include <pcl/ModelCoefficients.h>
@@ -73,8 +77,9 @@ class handle_sampler
     inline pcl::PointCloud<pcl::PointXYZRGB>::Ptr getCloud(){return roi_cloud_;};
     inline void setGraspViusual(bool _sig){grasp_visualization_ = _sig;};
 
-    void InitRobotKinematics(KDL::JntArray _robot_joint_val, KDL::Chain _robot_chain);
-    void grasp_candidate_gen();
+    void InitRobotKinematics(KDL::JntArray _nominal, KDL::Chain _robot_chain);
+
+    geometry_msgs::Pose getSolution(unsigned int _objNum);
 
 
     struct graspCandidate{
@@ -87,12 +92,16 @@ class handle_sampler
 
     ///////////// function ///////////////////////////////
     void reigon_cb(const gb_visual_detection_3d_msgs::BoundingBoxes3dConstPtr &_objpose);
-    void roi_filter_cloud();
+    void cloud_cb(const sensor_msgs::PointCloud2ConstPtr& msg);
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr roi_filter_cloud(Eigen::Vector4f,Eigen::Vector4f);
+    void obj_visualization();
     Eigen::Matrix4f Frame2Eigen(KDL::Frame &frame);
 
     //////////// Variable /////////////////////////////////
     ros::Rate rate_;
+    ros::Publisher obj_cloud_pub_;
     ros::Subscriber yolo_detection_sub_;
+    ros::Subscriber kinect_cloud_sub_;
 
     Eigen::Matrix4f T_BC_;
 
@@ -103,10 +112,9 @@ class handle_sampler
     KDL::JntArray robot_joint_val_;
     KDL::Frame T_BC_Frame;
 
-    sensor_msgs::PointCloud2 cloud_visualization_;
-
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr roi_cloud_;
-
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr visualization_cloud_;
+    
     std::vector<graspCandidate> result_;
 
     bool grasp_visualization_;
