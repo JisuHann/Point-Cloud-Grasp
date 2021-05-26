@@ -1,167 +1,134 @@
-#include "handle_gen.h"
+#include "../include/roi_extractor/handle_gen.h"
 
 handle_sampler::handle_sampler(ros::NodeHandle &_nh,double _hz):
 rate_(_hz)
 {
-    yolo_detection_sub_ = _nh.subscribe("/darknet_ros_3d/bounding_boxes",10, &handle_sampler::reigon_cb, this)
+    yolo_detection_sub_ = _nh.subscribe("/darknet_ros_3d/bounding_boxes",10, &handle_sampler::reigon_cb, this);
+
+    // allocate variable siz
+    roi_cloud_ = pcl::PointCloud<pcl::PointXYZRGB>::Ptr(new pcl::PointCloud<pcl::PointXYZRGB>);
+    T_BC_.resize(4,4);
+
+    // init params (Defalut)
+    grasp_visualization_=false;
+    detected_obj_num_ =0;
 }
 
 void handle_sampler::reigon_cb(const gb_visual_detection_3d_msgs::BoundingBoxes3dConstPtr &_objpose)
 {
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud (new pcl::PointCloud<pcl::PointXYZRGB>);
+    detected_obj_num_ = _objpose->bounding_boxes.size();
+    result_.resize(detected_obj_num_);
+    int tmp_obj_num = detected_obj_num_;
+    
+    for(unsigned int i = 0 ; i < detected_obj_num_; i++)
+    {
+        if(_objpose->bounding_boxes.at(i).Class == "door1")
+            result_.at(i).door_type_ = STICK;
+        else if(_objpose->bounding_boxes.at(i).Class == "door2")
+            result_.at(i).door_type_ = HANDLE;
+        else
+        {
+            std::cout <<"Door Handle type Not Founded!"<<std::endl;
+            tmp_obj_num--;
+            continue;
+        }
+        result_.at(i).obj_cloud_ = pcl::PointCloud<pcl::PointXYZRGB>::Ptr(new pcl::PointCloud<pcl::PointXYZRGB>);
+        result_.at(i).result_candidate.resize(10);
+
+        //// ROI Cluod Processing 
+
+        /////////////////////////
+        result_.at(i).obj_cloud_ = cloud;
+    }
+}
+
+Eigen::Matrix4f handle_sampler::Frame2Eigen(KDL::Frame &frame)
+{
+    Eigen::Matrix4f H_trans;
+    H_trans.resize(4,4);
+    double d[16] = {0,};
+    frame.Make4x4(d);
+
+    H_trans(0,0) = d[0];
+    H_trans(0,1) = d[1];
+    H_trans(0,2) = d[2];
+    H_trans(0,3) = d[3];
+    H_trans(1,0) = d[4];
+    H_trans(1,1) = d[5];
+    H_trans(1,2) = d[6];
+    H_trans(1,3) = d[7];
+    H_trans(2,0) = d[8];
+    H_trans(2,1) = d[9];
+    H_trans(2,2) = d[10];
+    H_trans(2,3) = d[11];
+    H_trans(3,0) = d[12];
+    H_trans(3,1) = d[13];
+    H_trans(3,2) = d[14];
+    H_trans(3,3) = d[15];
+
+    return H_trans;
+}
+
+void handle_sampler::roi_filter_cloud()
+{
 
 }
 
+void handle_sampler::InitRobotKinematics(KDL::JntArray _robot_joint_val, KDL::Chain _robot_chain)
+{
+    FK_chain_ = _robot_chain;
+    robot_joint_val_ = KDL::JntArray(FK_chain_.getNrOfJoints());
+    for(unsigned int i = 0; i <FK_chain_.getNrOfJoints(); i++ )
+        robot_joint_val_(i) = _robot_joint_val(i);
 
+    KDL::ChainFkSolverPos_recursive Fksolver = KDL::ChainFkSolverPos_recursive(FK_chain_);
 
+    if(Fksolver.JntToCart(robot_joint_val_,T_BC_Frame) < 0)
+        std::cerr<<"Fk about robot Model Failed!!!!"<<std::endl;
 
+    // T_BO = T_BC * T_CO ---> External Params
+    T_BC_ = Frame2Eigen(T_BC_Frame);
+}
 
+void handle_sampler::grasp_candidate_gen()
+{   
+    // filering point cloud to make roi includes
+    roi_filter_cloud();
 
+    pcl::search::Search<pcl::PointXYZRGB>::Ptr tree (new pcl::search::KdTree<pcl::PointXYZRGB>);
+    pcl::PointCloud <pcl::Normal>::Ptr normals (new pcl::PointCloud <pcl::Normal>);
+    pcl::NormalEstimation<pcl::PointXYZRGB, pcl::Normal> normal_estimator;
 
+    normal_estimator.setSearchMethod(tree);
+    normal_estimator.setInputCloud(roi_cloud_);
+    normal_estimator.setKSearch(50);
+    normal_estimator.compute(*normals);
 
-// #include <ros/ros.h>
+    // pcl::IndicesPtr indices (new std::vector <int>);
+    // pcl::PassThrough<pcl::PointXYZRGB> pass;
+    // pass.setInputCloud(cloud_msg);
+    // pass.setFilterFieldName("z");
+    // pass.setFilterLimits(0.0, 2.0);
+    // pass.filter(*indices);
 
-// //PCL includes
-// #include <sensor_msgs/PointCloud2.h>
-// #include <pcl_conversions/pcl_conversions.h>
-// #include <pcl/point_cloud.h>
-// #include <pcl/point_types.h>
+    // std::vector<pcl::PointIndices> clusters;
+    // pcl::EuclideanClusterExtraction<pcl::PointXYZRGB> ec;
+	// ec.setClusterTolerance(0.01); // 2cm
+	// ec.setMinClusterSize(50); //100
+	// ec.setMaxClusterSize(99000000);
+	// ec.setSearchMethod(tree);
+	// ec.setInputCloud(cloud_msg);
+	// ec.extract(clusters);
 
-// #include <pcl/search/search.h>
-// #include <pcl/search/kdtree.h>
-
-// #include <pcl/features/normal_3d.h>
-// #include <pcl/segmentation/region_growing.h>
-// #include <pcl/segmentation/region_growing_rgb.h>
-
-// #include <iostream>
-// #include <pcl/ModelCoefficients.h>
-// #include <pcl/io/pcd_io.h>
-// #include <pcl/sample_consensus/method_types.h>
-// #include <pcl/sample_consensus/model_types.h>
-// #include <pcl/segmentation/sac_segmentation.h>
-// #include <pcl/filters/extract_indices.h>
-// #include <pcl/visualization/cloud_viewer.h>
-// #include <pcl/filters/passthrough.h>
-
-// // System
-// #include <sstream>
-// #include <string>
-// #include <vector>
-
-
-// ros::Publisher seg_cloud_pub;
-
-// void rcv_cloud (const sensor_msgs::PointCloud2ConstPtr& msg)
-// {
-//     // Convert to pcl point cloud
-//     //ROS_INFO("rcv cloud");
-//     //search Method
-//     pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_msg (new pcl::PointCloud<pcl::PointXYZRGB>);
-//     pcl::fromROSMsg(*msg,*cloud_msg);
-//     sensor_msgs::PointCloud2 cloud_publish;
-
-//     pcl::search::Search<pcl::PointXYZRGB>::Ptr tree (new pcl::search::KdTree<pcl::PointXYZRGB>);
-//     pcl::PointCloud <pcl::Normal>::Ptr normals (new pcl::PointCloud <pcl::Normal>);
-//     pcl::NormalEstimation<pcl::PointXYZRGB, pcl::Normal> normal_estimator;
-
-//     normal_estimator.setSearchMethod(tree);
-//     normal_estimator.setInputCloud(cloud_msg);
-//     normal_estimator.setKSearch(50);
-//     normal_estimator.compute(*normals);
-
-//     pcl::IndicesPtr indices (new std::vector <int>);
-//     pcl::PassThrough<pcl::PointXYZRGB> pass;
-//     pass.setInputCloud(cloud_msg);
-//     pass.setFilterFieldName("z");
-//     pass.setFilterLimits(0.0, 2.0);
-//     pass.filter(*indices);
-
-//     pcl::RegionGrowing<pcl::PointXYZRGB, pcl::Normal> reg;
-//     reg.setMinClusterSize(50);
-//     reg.setMaxClusterSize(1000000);
-//     reg.setSearchMethod(tree);
-//     reg.setNumberOfNeighbours(30);
-//     reg.setInputCloud(cloud_msg);
-//     //reg.setIndices (indices);
-//     reg.setInputNormals(normals);
-//     reg.setSmoothnessThreshold(0.5 / 180.0 * M_PI);
-//     reg.setCurvatureThreshold(0.5);
-
-//     std::vector<pcl::PointIndices> clusters;
-//     reg.extract(clusters);
-
-//     pcl::PointCloud <pcl::PointXYZRGB>::Ptr colored_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
-
-//     int j= 0;
-//     for (std::vector<pcl::PointIndices>::const_iterator it = clusters.begin(); it != clusters.end(); ++it)
-//     {
-//         for (std::vector<int>::const_iterator pit = it->indices.begin(); pit != it->indices.end(); ++pit)
-//         {
-//                 pcl::PointXYZRGB point;
-//                 point.x = cloud_msg->points[*pit].x;
-//                 point.y = cloud_msg->points[*pit].y;
-//                 point.z = cloud_msg->points[*pit].z;
-//                 if (j == 0) //Red	#FF0000	(255,0,0)  (윗 문)
-// 			     {
-// 				      point.r = 0;
-// 				      point.g = 0;
-// 				      point.b = 255;
-// 			     }
-// 			    else if (j == 1) //Lime	#00FF00	(0,255,0)
-// 			     {
-// 				      point.r = 0;
-// 				      point.g = 255;
-// 				      point.b = 0;
-// 			     }
-// 			    else if (j == 2) // Blue	#0000FF	(0,0,255) (아랫문)
-// 			     {
-// 				      point.r = 255;
-// 				      point.g = 0;
-// 				      point.b = 0;
-// 			     }
-//                  colored_cloud->push_back(point);
-//         }
-//          j++;
-//     }
-//     // pcl::PointCloud <pcl::PointXYZRGB>::Ptr colored_cloud = reg.getColoredCloud ();
-
-//     pcl::toROSMsg(*colored_cloud,cloud_publish);
-//     cloud_publish.header = msg->header;  //-->zvid_pc_50704
-
-//     //std::cerr<<"frame id : "<<cloud_publish.header.frame_id<<std::endl;
-//     if(cloud_publish.width * cloud_publish.height > 1)
-//     {
-//         seg_cloud_pub.publish(cloud_publish);
-//         //g_cloud = cloud_publish;
-//     }
-
-//     //echo publish clouds
-//     //g_pub_clone.publish(g_cloud);
-    
-// }
-
-// int main(int argc, char **argv)
-// {
-//     ros::init(argc, argv, "roi_plane_segmentation");
-//     ros::NodeHandle nh;  
-
-//     //init robot Parameter
-//     double finger_length_x = 0.02;
-//     double finger_length_y = 0.02;
-//     double finger_length_z = 0.05;
-//     double init_bite  = 0.15;
-
-//     bool voxelize = true;
-//     bool remove_outliers = false;
-
-//     //std::vector<double> workspace = stringToDouble(workspace_str);
-//     //std::vector<double> camera_pose 
-
-//     ros::Subscriber sub = nh.subscribe ("/ROI/FilteredCloud", 1, rcv_cloud); //camera/depts/points
-    
-//     seg_cloud_pub = nh.advertise<sensor_msgs::PointCloud2>("/segmented/plane/cloud", 1);
-
-//     // Create a Ros Srv for plane Equation ax+by+cz+d = 0
-//     //spin
-//     ros::spin();
-// }
+    // pcl::RegionGrowing<pcl::PointXYZRGB, pcl::Normal> reg;
+    // reg.setMinClusterSize(50);
+    // reg.setMaxClusterSize(1000000);
+    // reg.setSearchMethod(tree);
+    // reg.setNumberOfNeighbours(30);
+    // reg.setInputCloud(cloud_msg);
+    // //reg.setIndices (indices);
+    // reg.setInputNormals(normals);
+    // reg.setSmoothnessThreshold(0.7 / 180.0 * M_PI);
+    // reg.setCurvatureThreshold(0.1);
+}

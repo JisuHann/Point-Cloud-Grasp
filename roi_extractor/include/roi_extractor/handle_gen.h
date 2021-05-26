@@ -13,14 +13,10 @@
 
 //  ros msgs Header
 #include <gb_visual_detection_3d_msgs/BoundingBoxes3d.h>
-#include <std_msgs/Float64.h>
 #include <visualization_msgs/MarkerArray.h>
-#include <sensor_msgs/CameraInfo.h>
 #include <sensor_msgs/JointState.h>
-#include <geometry_msgs/Quaternion.h>
+#include <sensor_msgs/PointCloud2.h>
 #include <geometry_msgs/Pose.h>
-
-// msgs Filter
 
 // Eigen Header
 #include <Eigen/Dense>
@@ -32,10 +28,27 @@
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
 
+#include <pcl/common/transforms.h>
+#include <pcl/ModelCoefficients.h>
+
+#include <pcl/search/search.h>
+#include <pcl/search/kdtree.h>
+
+#include <pcl/sample_consensus/method_types.h>
+#include <pcl/sample_consensus/model_types.h>
+
 #include <pcl/features/normal_3d.h>
+
+#include <pcl/segmentation/sac_segmentation.h>
+#include <pcl/segmentation/region_growing.h>
+#include <pcl/segmentation/region_growing_rgb.h>
+#include <pcl/segmentation/extract_clusters.h>
 
 #include <pcl/filters/crop_box.h>
 #include <pcl/filters/statistical_outlier_removal.h>
+#include <pcl/filters/extract_indices.h>
+#include <pcl/filters/project_inliers.h>
+#include <pcl/filters/passthrough.h>
 
 // KDL header
 #include <kdl/chain.hpp>
@@ -43,18 +56,39 @@
 #include <kdl/chainfksolverpos_recursive.hpp>
 #include <kdl/frames_io.hpp>
 
-class handle_sampler
+const double FINGER_LEN_X     = 0.02;
+const double FINGER_LEN_Y     = 0.02;
+const double FINGER_LEN_Z     = 0.05;
+const double HAND_BITE        = 0.15;
+const int    NUM_FOR_SAMPLING = 10;
+
+enum door_type{ STICK , HANDLE};
+
+class handle_sampler    
 {
     public:
     handle_sampler(ros::NodeHandle &_nh,double _hz);
     ~handle_sampler(){};
 
     inline pcl::PointCloud<pcl::PointXYZRGB>::Ptr getCloud(){return roi_cloud_;};
+    inline void setGraspViusual(bool _sig){grasp_visualization_ = _sig;};
+
+    void InitRobotKinematics(KDL::JntArray _robot_joint_val, KDL::Chain _robot_chain);
+    void grasp_candidate_gen();
+
+
+    struct graspCandidate{
+        unsigned int door_type_;
+        pcl::PointCloud<pcl::PointXYZRGB>::Ptr obj_cloud_;
+        std::vector<geometry_msgs::Pose> result_candidate;
+    };
 
     private:
 
     ///////////// function ///////////////////////////////
     void reigon_cb(const gb_visual_detection_3d_msgs::BoundingBoxes3dConstPtr &_objpose);
+    void roi_filter_cloud();
+    Eigen::Matrix4f Frame2Eigen(KDL::Frame &frame);
 
     //////////// Variable /////////////////////////////////
     ros::Rate rate_;
@@ -66,6 +100,15 @@ class handle_sampler
     Eigen::Vector4f maxPoint;
 
     KDL::Chain FK_chain_;
+    KDL::JntArray robot_joint_val_;
+    KDL::Frame T_BC_Frame;
+
+    sensor_msgs::PointCloud2 cloud_visualization_;
 
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr roi_cloud_;
+
+    std::vector<graspCandidate> result_;
+
+    bool grasp_visualization_;
+    int  detected_obj_num_;
 };
