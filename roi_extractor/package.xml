@@ -49,6 +49,8 @@
   <depend>trac_ik_lib</depend>
   <depend>kdl_parser</depend>
 
+  <depend>visualization_msgs</depend>
+
   <!-- The export tag contains other, unspecified, tags -->
   <export>
     <!-- Other tools can request additional information be placed here -->

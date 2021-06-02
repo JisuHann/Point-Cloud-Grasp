@@ -8,6 +8,7 @@ find_package(catkin REQUIRED COMPONENTS
   pcl_ros
   roscpp
   sensor_msgs
+  visualization_msgs
   std_msgs
   tf_conversions
   gb_visual_detection_3d_msgs
@@ -30,6 +31,7 @@ generate_messages(
   std_msgs
   geometry_msgs   
   sensor_msgs
+  visualization_msgs
 )
 
 catkin_package(
@@ -41,7 +43,8 @@ catkin_package(
 
 set(SRCS
   src/handle_gen.cpp
-  src/roiExtractor.cpp
+#  src/roiExtractor.cpp
+  src/main.cpp
 )
 set(HEADS
   include/roi_extractor/handle_gen.h
@@ -61,5 +64,10 @@ include_directories(
   ${orocos_kdl_INCLUDE_DIRS}
 )
 
-add_executable(roi_extractor_srv src/roiExtractor.cpp ${SRCS} ${HEADS})
-target_link_libraries(roi_extractor_srv sampling)
+#add_executable(roi_extractor_srv src/roiExtractor.cpp ${SRCS} ${HEADS})
+#target_link_libraries(roi_extractor_srv sampling)
+
+
+add_executable(graspSampling src/main.cpp ${SRCS} ${HEADS})
+target_link_libraries(graspSampling sampling)
+

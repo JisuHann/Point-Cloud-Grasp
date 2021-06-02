@@ -18,6 +18,7 @@
 #include <sensor_msgs/JointState.h>
 #include <sensor_msgs/PointCloud2.h>
 #include <geometry_msgs/Pose.h>
+#include <visualization_msgs/Marker.h>
 
 // Eigen Header
 #include <Eigen/Dense>
@@ -53,6 +54,7 @@
 #include <pcl/filters/extract_indices.h>
 #include <pcl/filters/project_inliers.h>
 #include <pcl/filters/passthrough.h>
+#include <pcl/filters/random_sample.h>
 
 // KDL header
 #include <kdl/chain.hpp>
@@ -64,9 +66,10 @@ const double FINGER_LEN_X     = 0.02;
 const double FINGER_LEN_Y     = 0.02;
 const double FINGER_LEN_Z     = 0.05;
 const double HAND_BITE        = 0.15;
+const int    OBJ_NUM          = 1;
 const int    NUM_FOR_SAMPLING = 10;
 
-enum door_type{ STICK , HANDLE};
+enum door_type{ HANDLE, STICK};
 
 class handle_sampler    
 {
@@ -79,7 +82,9 @@ class handle_sampler
 
     void InitRobotKinematics(KDL::JntArray _nominal, KDL::Chain _robot_chain);
 
-    geometry_msgs::Pose getSolution(unsigned int _objNum);
+    std::vector<geometry_msgs::Pose> getSolution(unsigned int _objNum);
+
+    void obj_visualization();
 
 
     struct graspCandidate{
@@ -94,14 +99,18 @@ class handle_sampler
     void reigon_cb(const gb_visual_detection_3d_msgs::BoundingBoxes3dConstPtr &_objpose);
     void cloud_cb(const sensor_msgs::PointCloud2ConstPtr& msg);
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr roi_filter_cloud(Eigen::Vector4f,Eigen::Vector4f);
-    void obj_visualization();
     Eigen::Matrix4f Frame2Eigen(KDL::Frame &frame);
 
     //////////// Variable /////////////////////////////////
     ros::Rate rate_;
     ros::Publisher obj_cloud_pub_;
+    ros::Publisher handle_cloud_;
+    ros::Publisher grasp_pub_;
+
     ros::Subscriber yolo_detection_sub_;
     ros::Subscriber kinect_cloud_sub_;
+
+    sensor_msgs::PointCloud2 cloud_msgs_;
 
     Eigen::Matrix4f T_BC_;
 
@@ -119,4 +128,6 @@ class handle_sampler
 
     bool grasp_visualization_;
     int  detected_obj_num_;
+    int  target_object_num_;
+    int  markerShape_;
 };
