@@ -12,6 +12,7 @@ int main(int argc, char **argv)
     // config.loadConfig(yaml_path)
 
     handle_sampler handle_sampler_interface(nh,10);
+    
     while (ros::ok())
     {
         ros::spinOnce();

@@ -43,6 +43,7 @@
 #include <pcl/sample_consensus/model_types.h>
 
 #include <pcl/features/normal_3d.h>
+#include <pcl/features/moment_of_inertia_estimation.h>
 
 #include <pcl/segmentation/sac_segmentation.h>
 #include <pcl/segmentation/region_growing.h>
@@ -96,8 +97,10 @@ class handle_sampler
     private:
 
     ///////////// function ///////////////////////////////
+
     void reigon_cb(const gb_visual_detection_3d_msgs::BoundingBoxes3dConstPtr &_objpose);
     void cloud_cb(const sensor_msgs::PointCloud2ConstPtr& msg);
+
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr roi_filter_cloud(Eigen::Vector4f,Eigen::Vector4f);
     Eigen::Matrix4f Frame2Eigen(KDL::Frame &frame);
 
@@ -107,10 +110,14 @@ class handle_sampler
     ros::Publisher handle_cloud_;
     ros::Publisher grasp_pub_;
 
+    ros::Publisher grasp_test;
+
     ros::Subscriber yolo_detection_sub_;
     ros::Subscriber kinect_cloud_sub_;
 
     sensor_msgs::PointCloud2 cloud_msgs_;
+    visualization_msgs::Marker grasp_;
+    visualization_msgs::MarkerArray grasps_;
 
     Eigen::Matrix4f T_BC_;
 
@@ -125,9 +132,12 @@ class handle_sampler
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr visualization_cloud_;
     
     std::vector<graspCandidate> result_;
+    
+    Eigen::Matrix3f rotation;
 
     bool grasp_visualization_;
     int  detected_obj_num_;
     int  target_object_num_;
-    int  markerShape_;
+
+    int saveNum;
 };
