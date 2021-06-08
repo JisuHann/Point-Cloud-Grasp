@@ -3,28 +3,30 @@
 handle_sampler::handle_sampler(ros::NodeHandle &_nh,double _hz):
 rate_(_hz)
 {
-    obj_cloud_pub_ = _nh.advertise<sensor_msgs::PointCloud2>("/sampler/object", 1);
+    roi_cloud_pub_ = _nh.advertise<sensor_msgs::PointCloud2>("/sampler/object", 1);
     handle_cloud_ = _nh.advertise<sensor_msgs::PointCloud2>("/sampler/door_handle", 1);
     grasp_pub_ = _nh.advertise<visualization_msgs::MarkerArray>("/grasp/candidate", 1);
-
     grasp_test = _nh.advertise<sensor_msgs::PointCloud2>("/grasp/test", 1);
 
     yolo_detection_sub_ = _nh.subscribe("/darknet_ros_3d/bounding_boxes",1, &handle_sampler::reigon_cb, this);
     kinect_cloud_sub_ = _nh.subscribe("/k4a/depth_registered/points",1, &handle_sampler::cloud_cb, this);
+
     // allocate variable siz
     roi_cloud_ = pcl::PointCloud<pcl::PointXYZRGB>::Ptr(new pcl::PointCloud<pcl::PointXYZRGB>);
     visualization_cloud_ = pcl::PointCloud<pcl::PointXYZRGB>::Ptr(new pcl::PointCloud<pcl::PointXYZRGB>);
 
-    saveNum = 0;
     // init params (Defalut)
-    grasp_visualization_=false;
+    original_color_visualization_=false;
     detected_obj_num_ =0;
 
     _nh.getParam("target_obj_num", target_object_num_);
-    _nh.getParam("Gasp_Visualiztion",grasp_visualization_);
+    _nh.getParam("original_color_visualization",original_color_visualization_);
+
+    ///////////////////// allocate  Matrix //////////////////////////////////////////////////////////////
+
     T_BC_.resize(4,4);
 
-    //markerShape_ = visualization_msgs::Marker::ARROW;
+    //////////////////////////////////////////////////////////////////////////////////////////////////////
 }
 
 pcl::PointCloud<pcl::PointXYZRGB>::Ptr handle_sampler::roi_filter_cloud(Eigen::Vector4f minPoint, Eigen::Vector4f maxPoint)
@@ -34,13 +36,24 @@ pcl::PointCloud<pcl::PointXYZRGB>::Ptr handle_sampler::roi_filter_cloud(Eigen::V
 
     Eigen::Affine3f T_LK;
 
+    //////////////////   Realsense depth to optical link ///////////////////////////////////////////////////
+
     // Transform Matrix to depth link (realsense D435)
     // T_LK.translation() << -0.00014467 , 0.014879, 0.000155564;
     // T_LK.linear() = Eigen::Quaternionf(-0.49997,0.49875,-0.49919,0.50208).toRotationMatrix();
 
-    // Transform Matrix to depth Link Azure Kinect (Base to rgb_camera_link)
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+    /////////// Transform Matrix to depth Link Azure Kinect (Base to rgb_camera_link) /////////////////////
+
     T_LK.translation() << -0.0039076 , -0.0320149, -0.000327477;
     T_LK.linear() = Eigen::Quaternionf(0.498297,-0.49927,0.501692,-0.500734).toRotationMatrix();
+
+    //////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+    //////////////////////////////////// ROI (Crop BOX Filter) //////////////////////////////////////////
+
     pcl::CropBox<pcl::PointXYZRGB> boxFilter;
     boxFilter.setMin(minPoint);
     boxFilter.setMax(maxPoint);
@@ -49,6 +62,8 @@ pcl::PointCloud<pcl::PointXYZRGB>::Ptr handle_sampler::roi_filter_cloud(Eigen::V
     boxFilter.filter(*local_cloud);
     local_cloud->header = roi_cloud_->header;
     return local_cloud;
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////
 }
 
 void handle_sampler::cloud_cb (const sensor_msgs::PointCloud2ConstPtr& msg)
@@ -87,8 +102,8 @@ void handle_sampler::cloud_cb (const sensor_msgs::PointCloud2ConstPtr& msg)
         grasp_.pose.orientation.w = graspPoints.at(i).orientation.w;
 
         grasp_.scale.x = 0.05;
-        grasp_.scale.y = 0.01;
-        grasp_.scale.z = 0.01;
+        grasp_.scale.y = 0.005;
+        grasp_.scale.z = 0.005;
         grasp_.color.a = 1.0; // Don't forget to set the alpha!
         grasp_.color.r = 0.0;
         grasp_.color.g = 1.0;
@@ -193,7 +208,7 @@ void handle_sampler::obj_visualization()
             point.y =  result_.at(i).obj_cloud_->at(j).y;
             point.z =  result_.at(i).obj_cloud_->at(j).z;
 
-            if(!grasp_visualization_)
+            if(!original_color_visualization_)
             {
                 switch(i)
                 {
@@ -243,7 +258,7 @@ void handle_sampler::obj_visualization()
     pcl::toPCLPointCloud2(*visual_obj_cloud, cloud_Generated);
     pcl_conversions::fromPCL(cloud_Generated, cloud_visualization_);
     cloud_visualization_.header = cloud_msgs_.header;
-    obj_cloud_pub_.publish(cloud_visualization_);
+    roi_cloud_pub_.publish(cloud_visualization_);
 }
 
 Eigen::Matrix4f handle_sampler::Frame2Eigen(KDL::Frame &frame)
@@ -293,21 +308,41 @@ std::vector<geometry_msgs::Pose> handle_sampler::getSolution(unsigned int _objNu
 {
     std::vector<geometry_msgs::Pose> handle_candidate;
     sensor_msgs::PointCloud2 cloud_visualization_;
+    pcl::PCLPointCloud2 cloud_Generated;
     handle_candidate.resize(NUM_FOR_SAMPLING); 
 
     //////////////////////////////// Load form Kinect /////////////////////////////////////
     pcl::PointCloud <pcl::PointXYZRGB>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
 
+    pcl::PointCloud <pcl::PointXYZRGB>::Ptr CAD_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
+
     //cloud = result_.at(_objNum).obj_cloud_;
     // copyPointCloud(*result_.at(_objNum).obj_cloud_,*cloud);
 
     //////////////////////////////////Load from Files (test)////////////////////////////////////////
+    //pcl::io::loadPCDFile<pcl::PointXYZRGB>("/home/min/catkin_ws/src/sampleCloud/doorsample1.pcd", *cloud) == -1) /home/min/catkin_ws/src/roi_extractor/CADMODEL/Refigerator_handle.pcd
 
     if (pcl::io::loadPCDFile<pcl::PointXYZRGB>("/home/min/catkin_ws/src/sampleCloud/doorsample1.pcd", *cloud) == -1) //* load the file
     {
-        ROS_INFO("Couldn't read file test_pcd.pcd \n");
+        ROS_INFO("Couldn't read file door Model \n");
         return handle_candidate;
     }
+
+    if (pcl::io::loadPCDFile<pcl::PointXYZRGB>("/home/min/catkin_ws/src/roi_extractor/CADMODEL/Refigerator_handle.pcd", *CAD_cloud) == -1) //* load the file
+    {
+        ROS_INFO("Couldn't read file CAD FILES \n");
+        return handle_candidate;
+    }
+
+
+    pcl::VoxelGrid<pcl::PointXYZRGB> sor;
+    // sor.setInputCloud(cloud);
+    // sor.setLeafSize(0.01f, 0.01f, 0.01f);
+    // sor.filter(*cloud);
+
+    sor.setInputCloud(CAD_cloud);
+    sor.setLeafSize(0.01f, 0.01f, 0.01f);
+    sor.filter(*CAD_cloud);
 
     std::cout<<"file Cloud size :  "<<cloud->size()<<std::endl;
 
@@ -322,15 +357,6 @@ std::vector<geometry_msgs::Pose> handle_sampler::getSolution(unsigned int _objNu
     // }
 
     ///////////////////////////////////////////////////////////////////////////////
-
-    pcl::PCLPointCloud2 cloud_Generated;
-    cloud->header.frame_id = roi_cloud_->header.frame_id;
-    pcl::toPCLPointCloud2(*cloud, cloud_Generated);
-    pcl_conversions::fromPCL(cloud_Generated, cloud_visualization_);
-    cloud_visualization_.header = cloud_msgs_.header;
-    handle_cloud_.publish(cloud_visualization_);
-
-
 
     pcl::search::Search<pcl::PointXYZRGB>::Ptr tree (new pcl::search::KdTree<pcl::PointXYZRGB>);
     pcl::PointCloud <pcl::Normal>::Ptr normals (new pcl::PointCloud <pcl::Normal>);
@@ -354,22 +380,46 @@ std::vector<geometry_msgs::Pose> handle_sampler::getSolution(unsigned int _objNu
     pcl::RegionGrowing<pcl::PointXYZRGB, pcl::Normal> reg;
     pcl::EuclideanClusterExtraction<pcl::PointXYZRGB> ec;
 
+
+    // Plane Segmentation Obj////////////////////////////////////////////////
+    pcl::PointCloud <pcl::PointXYZRGB>::Ptr outliercloud(new pcl::PointCloud<pcl::PointXYZRGB>);
+    pcl::ExtractIndices<pcl::PointXYZRGB> extract;
+
+    pcl::ModelCoefficients::Ptr coefficients (new pcl::ModelCoefficients);
+    pcl::PointIndices::Ptr inliers (new pcl::PointIndices);
+
+    pcl::SACSegmentationFromNormals<pcl::PointXYZRGB,pcl::Normal> seg; 
+
+    cloud->header.frame_id = roi_cloud_->header.frame_id;
+    pcl::toPCLPointCloud2(*cloud, cloud_Generated);
+    pcl_conversions::fromPCL(cloud_Generated, cloud_visualization_);
+    cloud_visualization_.header = cloud_msgs_.header;
+    grasp_test.publish(cloud_visualization_);
+
+
     // When you initialzie in switch-case you should use { }
-    switch(HANDLE) //result_.at(_objNum).door_type_
+    switch(STICK) //result_.at(_objNum).door_type_
     {
 
     case STICK:
         std::cout<<"stick"<<std::endl;
-        reg.setMinClusterSize(50);
-        reg.setMaxClusterSize(1000000);
-        reg.setSearchMethod(tree);
-        reg.setNumberOfNeighbours(20);
-        reg.setInputCloud(cloud);
-        //reg.setIndices (indices);
-        reg.setInputNormals(normals);
-        reg.setSmoothnessThreshold(0.3 / 180.0 * M_PI);
-        reg.setCurvatureThreshold(0.1);
-        reg.extract(clusters);
+
+        seg.setOptimizeCoefficients (true);  // Optional
+        seg.setModelType(pcl::SACMODEL_NORMAL_PLANE); //PLANE 모델 사용
+        seg.setMethodType(pcl::SAC_RANSAC);  //RANSAC 방법 사용 
+        seg.setMaxIterations(100);
+        seg.setDistanceThreshold(0.01); //determines how close a point must be to the model in order to be considered an inlier
+        seg.setInputCloud(cloud);
+        seg.setInputNormals(normals);
+        seg.segment (*inliers, *coefficients);
+
+        extract.setInputCloud(cloud);
+        extract.setIndices(inliers);
+        extract.setNegative (false);
+        extract.filter(*cloud);
+        RP <<  1,              0, 0,
+                 0,  cos(45) , sin(45),
+                 0,  -sin(45), cos(45);
         break;
     case HANDLE:
         std::cout<<"handle"<<std::endl;
@@ -379,20 +429,27 @@ std::vector<geometry_msgs::Pose> handle_sampler::getSolution(unsigned int _objNu
         ec.setSearchMethod(tree);
         ec.setInputCloud(cloud);
         ec.extract(clusters);
-        rotation << 1,              0, 0,
-                    0,  cos(90) , sin(90),
-                    0,  -sin(90), cos(90);
+        RP <<  cos(90), -sin(90), 0,
+               sin(90),  cos(90), 0,
+               0            ,  0            , 1;
         break;
     default:
         std::cout<<"No door Model Exist!!!"<<std::endl;
         break;
     }
 
-    pcl::PointCloud <pcl::PointXYZRGB>::Ptr colored_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
+    cloud->header.frame_id = roi_cloud_->header.frame_id;
+    pcl::toPCLPointCloud2(*cloud, cloud_Generated);
+    pcl_conversions::fromPCL(cloud_Generated, cloud_visualization_);
+    cloud_visualization_.header = cloud_msgs_.header;
+    handle_cloud_.publish(cloud_visualization_);
+    ///////////////////////////////////////////////////////////////////////////////
+
+    //pcl::PointCloud <pcl::PointXYZRGB>::Ptr colored_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
 
     // x min y min z min 1 -- >Homogenous Transform
 
-    double min_dist = 5e3;
+    // double min_dist = 5e3;
 
     //Eigen::Vector2f base_position_xy(0,0);
     //std::vector<Eigen::Vector2f> obj_min_pos;
@@ -402,88 +459,88 @@ std::vector<geometry_msgs::Pose> handle_sampler::getSolution(unsigned int _objNu
     //     std::cout<<"no Cloud Founded"<<std::endl;
     //     return handle_candidate;
     // }
-    // obj_min_pos.resize(clusters.size());
+    //obj_min_pos.resize(clusters.size());
 
     ///////////////////// remove Outliers in Point Cloud ///////////////////////////////////
 
-    int j= 0;
+    // int j= 0;
 
-    pcl::PointCloud <pcl::PointXYZRGB>::Ptr candidate_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
-    for (std::vector<pcl::PointIndices>::const_iterator it = clusters.begin(); it != clusters.end(); ++it)
-    {
-        //pcl::PointCloud <pcl::PointXYZRGB>::Ptr candidate_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
-        double dist;
-        int num_point = 0;
-        for (std::vector<int>::const_iterator pit = it->indices.begin(); pit != it->indices.end(); ++pit)
-        {
+    // pcl::PointCloud <pcl::PointXYZRGB>::Ptr candidate_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
+    // for (std::vector<pcl::PointIndices>::const_iterator it = clusters.begin(); it != clusters.end(); ++it)
+    // {
+    //     //pcl::PointCloud <pcl::PointXYZRGB>::Ptr candidate_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
+    //     double dist;
+    //     int num_point = 0;
+    //     for (std::vector<int>::const_iterator pit = it->indices.begin(); pit != it->indices.end(); ++pit)
+    //     {
             
-            pcl::PointXYZRGB point;
-            point.x = cloud->points[*pit].x;
-            point.y = cloud->points[*pit].y;
-            point.z = cloud->points[*pit].z;
+    //         pcl::PointXYZRGB point;
+    //         point.x = cloud->points[*pit].x;
+    //         point.y = cloud->points[*pit].y;
+    //         point.z = cloud->points[*pit].z;
 
 
-            ///////////////////////// Test Code ////////////////////////////////////////////////////////////////////////////////////////////
-            switch(j)
-            {
-            case 0:
-                point.r = 0;
-                point.g = 0;
-                point.b = 255;
-                break;
-            case 1:
-                point.r = 0;
-                point.g = 255;
-                point.b = 0;
-                break;
-            case 2:
-                point.r = 255;
-                point.g = 0;
-                point.b = 0;
-                break;
-            case 3:
-                point.r = 255;
-                point.g = 255;
-                point.b = 0;
-                break;
-            case 4:
-                point.r = 0;
-                point.g = 255;
-                point.b = 255;
-                break;
-            default:
-                point.r = 0;
-                point.g = 255;
-                point.b = 0;
-                break;
-            }
+    //         ///////////////////////// Test Code ////////////////////////////////////////////////////////////////////////////////////////////
+    //         switch(j)
+    //         {
+    //         case 0:
+    //             point.r = 0;
+    //             point.g = 0;
+    //             point.b = 255;
+    //             break;
+    //         case 1:
+    //             point.r = 0;
+    //             point.g = 255;
+    //             point.b = 0;
+    //             break;
+    //         case 2:
+    //             point.r = 255;
+    //             point.g = 0;
+    //             point.b = 0;
+    //             break;
+    //         case 3:
+    //             point.r = 255;
+    //             point.g = 255;
+    //             point.b = 0;
+    //             break;
+    //         case 4:
+    //             point.r = 0;
+    //             point.g = 255;
+    //             point.b = 255;
+    //             break;
+    //         default:
+    //             point.r = 0;
+    //             point.g = 255;
+    //             point.b = 0;
+    //             break;
+    //         }
 
-            ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    //         ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 
-            // point.r = 255;
-            // point.g = 0;
-            // point.b = 0;
-            // obj_min_pos.at(j)(0) += point.x;
-            // obj_min_pos.at(j)(1) += point.y; 
-            num_point++;
+    //         // point.r = 255;
+    //         // point.g = 0;
+    //         // point.b = 0;
+    //         // obj_min_pos.at(j)(0) += point.x;
+    //         // obj_min_pos.at(j)(1) += point.y; 
+    //         num_point++;
             
-            colored_cloud->push_back(point);
-        }
+    //         colored_cloud->push_back(point);
+    //     }
 
-        // obj_min_pos.at(j)(0) = obj_min_pos.at(j)(0) / num_point;
-        // obj_min_pos.at(j)(1) = obj_min_pos.at(j)(1) / num_point;
+    //     // obj_min_pos.at(j)(0) = obj_min_pos.at(j)(0) / num_point;
+    //     // obj_min_pos.at(j)(1) = obj_min_pos.at(j)(1) / num_point;
 
-        // dist = ( base_position_xy - obj_min_pos.at(j) ).norm();
+    //     // dist = ( base_position_xy - obj_min_pos.at(j) ).norm();
 
-        // // at least point number has 30
-        // if( min_dist > dist && num_point > 30)
-        // {
-        //     min_dist = dist;
-        //     colored_cloud = candidate_cloud;  ////////////
-        // }
-        j++;
-    }
+    //     // // at least point number has 30
+    //     // if( min_dist > dist && num_point > 30)
+    //     // {
+    //     //     min_dist = dist;
+    //     //     colored_cloud = candidate_cloud;  ////////////
+    //     // }
+    //     j++;
+    // }
 
     ///////////////////////////////////////////////////////////////////////////
     //colored_cloud = candidate_cloud; 
@@ -491,43 +548,45 @@ std::vector<geometry_msgs::Pose> handle_sampler::getSolution(unsigned int _objNu
     //copyPointCloud(*candidate_cloud, *colored_cloud);
     // 올바르게 Handle만 추출 되었는가???? 검증하는 Publisher
 
-    colored_cloud->header.frame_id = roi_cloud_->header.frame_id;
-    pcl::toPCLPointCloud2(*colored_cloud, cloud_Generated);
-    pcl_conversions::fromPCL(cloud_Generated, cloud_visualization_);
-    cloud_visualization_.header = cloud_msgs_.header;
-    grasp_test.publish(cloud_visualization_);
-
-
-    std::cout<<"seg ended  :"<<colored_cloud->size()<<std::endl;
-
-    ///////////////////////////////////////////////////////////////////////////
     
-    // Plane Segmentation Obj
-    pcl::PointCloud <pcl::PointXYZRGB>::Ptr planed_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
-    pcl::ExtractIndices<pcl::PointXYZRGB> extract;
 
-    pcl::ModelCoefficients::Ptr coefficients (new pcl::ModelCoefficients);
-    pcl::PointIndices::Ptr inliers (new pcl::PointIndices);
+    std::cout<<"seg ended  :"<<cloud->size()<<std::endl;
 
-    pcl::SACSegmentation<pcl::PointXYZRGB> seg; 
+    /////////////////////////// plane segmentation to get orientation /////////////////////////////
+    // Find the planar coefficients for floor plane
 
-    seg.setOptimizeCoefficients (true);  // Optional
-    seg.setModelType(pcl::SACMODEL_PLANE); //PLANE 모델 사용
-    seg.setMethodType(pcl::SAC_RANSAC);  //RANSAC 방법 사용 
-    seg.setDistanceThreshold(0.01); //determines how close a point must be to the model in order to be considered an inlier
 
-    seg.setInputCloud(colored_cloud);
-    seg.segment (*inliers, *coefficients);
+    // pcl::SACSegmentation<pcl::PointXYZRGB> plaen_seg;
+    // plaen_seg.setOptimizeCoefficients (true);
+    // plaen_seg.setModelType (pcl::SACMODEL_PLANE);
+    // plaen_seg.setMethodType (pcl::SAC_RANSAC);
+    // plaen_seg.setDistanceThreshold (0.01);
+    // plaen_seg.setInputCloud (cloud);
+    // plaen_seg.segment (*inliers, *coefficients);
 
-    extract.setInputCloud(colored_cloud);
-    extract.setIndices(inliers);
-    extract.setNegative(false);
-    extract.filter(*colored_cloud);
+    // Eigen::Matrix<float, 1, 3> floor_plane_normal_vector, xy_plane_normal_vector;
 
+    // floor_plane_normal_vector[0] = coefficients->values[0];
+    // floor_plane_normal_vector[1] = coefficients->values[1];
+    // floor_plane_normal_vector[2] = coefficients->values[2];
+
+    // xy_plane_normal_vector[0] = 0.0;
+    // xy_plane_normal_vector[1] = 0.0;
+    // xy_plane_normal_vector[2] = 1.0;
+
+    // Eigen::Vector3f rotation_vector = xy_plane_normal_vector.cross(floor_plane_normal_vector);
+    // float theta = -atan2(rotation_vector.norm(), xy_plane_normal_vector.dot(floor_plane_normal_vector));
+
+
+    // Eigen::Quaternionf quat(Eigen::AngleAxisf(theta, rotation_vector));
+        
     ////////////////////////////////////////////////////////////////////////////
 
+    /////////////////////////  Method to get Orientation with MomentOfIntertiaEstimation //////////////
+
+    
     pcl::MomentOfInertiaEstimation <pcl::PointXYZRGB> feature_extractor;
-    feature_extractor.setInputCloud (colored_cloud);
+    feature_extractor.setInputCloud (cloud);
     feature_extractor.compute ();
 
     std::vector <float> moment_of_inertia;
@@ -554,12 +613,17 @@ std::vector<geometry_msgs::Pose> handle_sampler::getSolution(unsigned int _objNu
 
     Eigen::Quaternionf quat(rotational_matrix_OBB);
 
-    quat = rotation*quat.toRotationMatrix();
+    //quat = rotation*quat.toRotationMatrix();
     
+
+    ///////////////////////////////////////////////////////////////////////////////////////////////////////////
+    quat = RP*quat.toRotationMatrix();
+
+    std::cout<<"Orientation "<<quat.toRotationMatrix()<<std::endl;
     pcl::RandomSample<pcl::PointXYZRGB> sample_points;
 
     pcl::PointCloud <pcl::PointXYZRGB>::Ptr sampled_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
-    sample_points.setInputCloud(colored_cloud);
+    sample_points.setInputCloud(cloud);
     sample_points.setSample(NUM_FOR_SAMPLING);
     sample_points.filter(*sampled_cloud);
 
