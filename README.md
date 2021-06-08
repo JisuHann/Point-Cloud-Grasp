@@ -37,6 +37,10 @@
 본 연구는 Ubuntu 18.04 / ROS Melodic 환경에서 실행되었습니다.
 환경 세팅을 위해 다음과 같은 Installation이 필요합니다.
 - CoppeliaSim
+- RBDL
+- PCL (at least 1.8)
+- OPENCV (at least 3.2)
+  
 </div>
 
 <div id="contri">
