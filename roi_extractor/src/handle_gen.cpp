@@ -6,7 +6,6 @@ rate_(_hz)
     roi_cloud_pub_ = _nh.advertise<sensor_msgs::PointCloud2>("/sampler/object", 1);
     handle_cloud_ = _nh.advertise<sensor_msgs::PointCloud2>("/sampler/door_handle", 1);
     grasp_pub_ = _nh.advertise<visualization_msgs::MarkerArray>("/grasp/candidate", 1);
-    grasp_test = _nh.advertise<sensor_msgs::PointCloud2>("/grasp/test", 1);
 
     yolo_detection_sub_ = _nh.subscribe("/darknet_ros_3d/bounding_boxes",1, &handle_sampler::reigon_cb, this);
     kinect_cloud_sub_ = _nh.subscribe("/k4a/depth_registered/points",1, &handle_sampler::cloud_cb, this);
@@ -18,6 +17,7 @@ rate_(_hz)
     // init params (Defalut)
     original_color_visualization_=false;
     detected_obj_num_ =0;
+    saveNum = 0;
 
     _nh.getParam("target_obj_num", target_object_num_);
     _nh.getParam("original_color_visualization",original_color_visualization_);
@@ -61,6 +61,22 @@ pcl::PointCloud<pcl::PointXYZRGB>::Ptr handle_sampler::roi_filter_cloud(Eigen::V
     boxFilter.setTransform(T_LK);
     boxFilter.filter(*local_cloud);
     local_cloud->header = roi_cloud_->header;
+
+    /////////////// down Sampling ////////////////////////////////////////////////////////////////////////
+
+    pcl::VoxelGrid<pcl::PointXYZRGB> sor;
+    sor.setInputCloud(local_cloud);
+    sor.setLeafSize(0.01f, 0.01f, 0.01f);
+    sor.filter(*local_cloud);
+
+    /////////////// StatisticalOutlierRemoval /////////////////////////////////////////////////////////////
+
+    pcl::StatisticalOutlierRemoval<pcl::PointXYZRGB> sor_f;
+    sor_f.setInputCloud(local_cloud);
+    sor_f.setMeanK(50);
+    sor_f.setStddevMulThresh (1.0);
+    sor_f.filter(*local_cloud);
+
     return local_cloud;
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -80,38 +96,38 @@ void handle_sampler::cloud_cb (const sensor_msgs::PointCloud2ConstPtr& msg)
     roi_cloud_ = cloud_msg;
 
     //////////////// for test form file///////////////////////////////////////////////////
-    std::vector<geometry_msgs::Pose> graspPoints = getSolution(target_object_num_);
-    //std::cout<<"e check"<<std::endl;
-    if(graspPoints.size() <= 0)
-        return;
+    // std::vector<geometry_msgs::Pose> graspPoints = getSolution(target_object_num_);
+    // //std::cout<<"e check"<<std::endl;
+    // if(graspPoints.size() <= 0)
+    //     return;
 
-    for(unsigned int i = 0; i < graspPoints.size(); i++)
-    {
-        grasp_.type = visualization_msgs::Marker::ARROW;
-        grasp_.action = visualization_msgs::Marker::ADD;
-        grasp_.id = i;
-        grasp_.header.stamp = ros::Time::now();
+    // for(unsigned int i = 0; i < graspPoints.size(); i++)
+    // {
+    //     grasp_.type = visualization_msgs::Marker::ARROW;
+    //     grasp_.action = visualization_msgs::Marker::ADD;
+    //     grasp_.id = i;
+    //     grasp_.header.stamp = ros::Time::now();
 
-        grasp_.pose.position.x = graspPoints.at(i).position.x;
-        grasp_.pose.position.y = graspPoints.at(i).position.y;
-        grasp_.pose.position.z = graspPoints.at(i).position.z;
+    //     grasp_.pose.position.x = graspPoints.at(i).position.x;
+    //     grasp_.pose.position.y = graspPoints.at(i).position.y;
+    //     grasp_.pose.position.z = graspPoints.at(i).position.z;
 
-        grasp_.pose.orientation.x = graspPoints.at(i).orientation.x;
-        grasp_.pose.orientation.y = graspPoints.at(i).orientation.y;
-        grasp_.pose.orientation.z = graspPoints.at(i).orientation.z;
-        grasp_.pose.orientation.w = graspPoints.at(i).orientation.w;
+    //     grasp_.pose.orientation.x = graspPoints.at(i).orientation.x;
+    //     grasp_.pose.orientation.y = graspPoints.at(i).orientation.y;
+    //     grasp_.pose.orientation.z = graspPoints.at(i).orientation.z;
+    //     grasp_.pose.orientation.w = graspPoints.at(i).orientation.w;
 
-        grasp_.scale.x = 0.05;
-        grasp_.scale.y = 0.005;
-        grasp_.scale.z = 0.005;
-        grasp_.color.a = 1.0; // Don't forget to set the alpha!
-        grasp_.color.r = 0.0;
-        grasp_.color.g = 1.0;
-        grasp_.color.b = 0.0;
-        grasps_.markers.push_back(grasp_);
-    }
+    //     grasp_.scale.x = 0.05;
+    //     grasp_.scale.y = 0.005;
+    //     grasp_.scale.z = 0.005;
+    //     grasp_.color.a = 1.0; // Don't forget to set the alpha!
+    //     grasp_.color.r = 0.0;
+    //     grasp_.color.g = 1.0;
+    //     grasp_.color.b = 0.0;
+    //     grasps_.markers.push_back(grasp_);
+    // }
 
-    grasp_pub_ .publish(grasps_);
+    // grasp_pub_ .publish(grasps_);
 
     ///////////////////////////////////////////////////////////////////////////////////////
 }
@@ -164,35 +180,38 @@ void handle_sampler::reigon_cb(const gb_visual_detection_3d_msgs::BoundingBoxes3
     obj_visualization();
 
 
-    //std::vector<geometry_msgs::Pose> graspPoints = getSolution(target_object_num_);
+    std::vector<geometry_msgs::Pose> graspPoints = getSolution(target_object_num_);
 
-    // for(unsigned int i = 0; i < graspPoints.size(); i++)
-    // {
-    //     grasp_.type = visualization_msgs::Marker::ARROW;
-    //     grasp_.action = visualization_msgs::Marker::ADD;
-    //     grasp_.id = i;
-    //     grasp_.header.stamp = ros::Time::now();
+    if(graspPoints.size() <= 0)
+        return;
 
-    //     grasp_.pose.position.x = graspPoints.at(i).position.x;
-    //     grasp_.pose.position.y = graspPoints.at(i).position.y;
-    //     grasp_.pose.position.z = graspPoints.at(i).position.z;
+    for(unsigned int i = 0; i < graspPoints.size(); i++)
+    {
+        grasp_.type = visualization_msgs::Marker::ARROW;
+        grasp_.action = visualization_msgs::Marker::ADD;
+        grasp_.id = i;
+        grasp_.header.stamp = ros::Time::now();
 
-    //     grasp_.pose.orientation.x = graspPoints.at(i).orientation.x;
-    //     grasp_.pose.orientation.y = graspPoints.at(i).orientation.y;
-    //     grasp_.pose.orientation.z = graspPoints.at(i).orientation.z;
-    //     grasp_.pose.orientation.w = graspPoints.at(i).orientation.w;
+        grasp_.pose.position.x = graspPoints.at(i).position.x;
+        grasp_.pose.position.y = graspPoints.at(i).position.y;
+        grasp_.pose.position.z = graspPoints.at(i).position.z;
 
-    //     grasp_.scale.x = 0.05;
-    //     grasp_.scale.y = 0.05;
-    //     grasp_.scale.z = 0.05;
-    //     grasp_.color.a = 1.0; // Don't forget to set the alpha!
-    //     grasp_.color.r = 0.0;
-    //     grasp_.color.g = 1.0;
-    //     grasp_.color.b = 0.0;
-    //     grasps_.markers.push_back(grasp_);
-    // }
+        grasp_.pose.orientation.x = graspPoints.at(i).orientation.x;
+        grasp_.pose.orientation.y = graspPoints.at(i).orientation.y;
+        grasp_.pose.orientation.z = graspPoints.at(i).orientation.z;
+        grasp_.pose.orientation.w = graspPoints.at(i).orientation.w;
 
-    // grasp_pub_ .publish(grasps_);
+        grasp_.scale.x = 0.05;
+        grasp_.scale.y = 0.05;
+        grasp_.scale.z = 0.05;
+        grasp_.color.a = 1.0; // Don't forget to set the alpha!
+        grasp_.color.r = 0.0;
+        grasp_.color.g = 1.0;
+        grasp_.color.b = 0.0;
+        grasps_.markers.push_back(grasp_);
+    }
+
+    grasp_pub_ .publish(grasps_);
 }
 
 void handle_sampler::obj_visualization() 
@@ -315,65 +334,16 @@ std::vector<geometry_msgs::Pose> handle_sampler::getSolution(unsigned int _objNu
     pcl::PointCloud <pcl::PointXYZRGB>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
 
     pcl::PointCloud <pcl::PointXYZRGB>::Ptr CAD_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
-
-    //cloud = result_.at(_objNum).obj_cloud_;
-    // copyPointCloud(*result_.at(_objNum).obj_cloud_,*cloud);
-
-    //////////////////////////////////Load from Files (test)////////////////////////////////////////
-    //pcl::io::loadPCDFile<pcl::PointXYZRGB>("/home/min/catkin_ws/src/sampleCloud/doorsample1.pcd", *cloud) == -1) /home/min/catkin_ws/src/roi_extractor/CADMODEL/Refigerator_handle.pcd
-
-    if (pcl::io::loadPCDFile<pcl::PointXYZRGB>("/home/min/catkin_ws/src/sampleCloud/doorsample1.pcd", *cloud) == -1) //* load the file
-    {
-        ROS_INFO("Couldn't read file door Model \n");
-        return handle_candidate;
-    }
-
-    if (pcl::io::loadPCDFile<pcl::PointXYZRGB>("/home/min/catkin_ws/src/roi_extractor/CADMODEL/Refigerator_handle.pcd", *CAD_cloud) == -1) //* load the file
-    {
-        ROS_INFO("Couldn't read file CAD FILES \n");
-        return handle_candidate;
-    }
+    pcl::PointCloud <pcl::PointXYZRGB>::Ptr CAD_process_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
 
 
     pcl::VoxelGrid<pcl::PointXYZRGB> sor;
-    // sor.setInputCloud(cloud);
-    // sor.setLeafSize(0.01f, 0.01f, 0.01f);
-    // sor.filter(*cloud);
 
-    sor.setInputCloud(CAD_cloud);
-    sor.setLeafSize(0.01f, 0.01f, 0.01f);
-    sor.filter(*CAD_cloud);
-
-    std::cout<<"file Cloud size :  "<<cloud->size()<<std::endl;
-
-    //save Point CLoud ////////////////////////////////////////////////////////////
-
-    // if(cloud->size() > 0)
-    // {
-    //     std::string save_path = "/home/min/catkin_ws/src/result/grasp";
-    //     std::string fileNum = std::to_string(saveNum);
-    //     pcl::io::savePCDFileASCII (save_path+fileNum+".pcd", *cloud);
-    //     saveNum++;
-    // }
-
-    ///////////////////////////////////////////////////////////////////////////////
 
     pcl::search::Search<pcl::PointXYZRGB>::Ptr tree (new pcl::search::KdTree<pcl::PointXYZRGB>);
     pcl::PointCloud <pcl::Normal>::Ptr normals (new pcl::PointCloud <pcl::Normal>);
     pcl::NormalEstimation<pcl::PointXYZRGB, pcl::Normal> normal_estimator;
 
-    normal_estimator.setSearchMethod(tree);
-    normal_estimator.setInputCloud(cloud);
-    normal_estimator.setKSearch(50);
-    normal_estimator.compute(*normals);
-
-    pcl::IndicesPtr indices (new std::vector <int>);
-
-    pcl::PassThrough<pcl::PointXYZRGB> pass;
-    pass.setInputCloud(cloud);
-    pass.setFilterFieldName("z");
-    pass.setFilterLimits(0.0, 2.0);
-    pass.filter(*indices);
 
     std::vector<pcl::PointIndices> clusters;
 
@@ -390,36 +360,47 @@ std::vector<geometry_msgs::Pose> handle_sampler::getSolution(unsigned int _objNu
 
     pcl::SACSegmentationFromNormals<pcl::PointXYZRGB,pcl::Normal> seg; 
 
-    cloud->header.frame_id = roi_cloud_->header.frame_id;
-    pcl::toPCLPointCloud2(*cloud, cloud_Generated);
-    pcl_conversions::fromPCL(cloud_Generated, cloud_visualization_);
-    cloud_visualization_.header = cloud_msgs_.header;
-    grasp_test.publish(cloud_visualization_);
-
-
+    /////////////////////////////// Classify Door type ///////////////////////////////////////////
     // When you initialzie in switch-case you should use { }
-    switch(STICK) //result_.at(_objNum).door_type_
+    switch(result_.at(_objNum).door_type_) //result_.at(_objNum).door_type_
     {
 
     case STICK:
         std::cout<<"stick"<<std::endl;
+
+        //////////////////////////////  Load door Handle Model /////////////////////////////////////////
+
+        if (pcl::io::loadPCDFile<pcl::PointXYZRGB>("/home/min/catkin_ws/src/sampleCloud/doorsample1.pcd", *CAD_cloud) == -1) //* load the file
+        {
+            ROS_INFO("Couldn't read file door Model \n");
+            return handle_candidate;
+        } 
+
+        sor.setInputCloud(CAD_cloud);
+        sor.setLeafSize(0.01f, 0.01f, 0.01f);
+        sor.filter(*CAD_cloud);
+
+        RP <<  1,              0, 0,
+                 0,  cos(90) , sin(90),
+                 0,  -sin(90), cos(90);
+
+        copyPointCloud(*CAD_cloud, *CAD_process_cloud);
+        /////////////////// clustering with Normal Vector ////////////////////////////////////////////////
 
         seg.setOptimizeCoefficients (true);  // Optional
         seg.setModelType(pcl::SACMODEL_NORMAL_PLANE); //PLANE 모델 사용
         seg.setMethodType(pcl::SAC_RANSAC);  //RANSAC 방법 사용 
         seg.setMaxIterations(100);
         seg.setDistanceThreshold(0.01); //determines how close a point must be to the model in order to be considered an inlier
-        seg.setInputCloud(cloud);
+        seg.setInputCloud(CAD_cloud);
         seg.setInputNormals(normals);
         seg.segment (*inliers, *coefficients);
 
-        extract.setInputCloud(cloud);
+        extract.setInputCloud(CAD_cloud);
         extract.setIndices(inliers);
         extract.setNegative (false);
-        extract.filter(*cloud);
-        RP <<  1,              0, 0,
-                 0,  cos(45) , sin(45),
-                 0,  -sin(45), cos(45);
+        extract.filter(*CAD_cloud);
+
         break;
     case HANDLE:
         std::cout<<"handle"<<std::endl;
@@ -443,6 +424,40 @@ std::vector<geometry_msgs::Pose> handle_sampler::getSolution(unsigned int _objNu
     pcl_conversions::fromPCL(cloud_Generated, cloud_visualization_);
     cloud_visualization_.header = cloud_msgs_.header;
     handle_cloud_.publish(cloud_visualization_);
+
+    //cloud = result_.at(_objNum).obj_cloud_;
+    // copyPointCloud(*result_.at(_objNum).obj_cloud_,*cloud);
+
+    //////////////////////////////////Load from Files (test)////////////////////////////////////////
+    //pcl::io::loadPCDFile<pcl::PointXYZRGB>("/home/min/catkin_ws/src/sampleCloud/doorsample1.pcd", *cloud) == -1) /home/min/catkin_ws/src/roi_extractor/CADMODEL/Refigerator_handle.pcd
+
+
+    //save Point CLoud ////////////////////////////////////////////////////////////
+
+    // if(cloud->size() > 0)
+    // {
+    //     std::string save_path = "/home/min/catkin_ws/src/result/grasp";
+    //     std::string fileNum = std::to_string(saveNum);
+    //     pcl::io::savePCDFileASCII (save_path+fileNum+".pcd", *cloud);
+    //     saveNum++;
+    // }
+
+    ///////////////////////////////////////////////////////////////////////////////
+
+    normal_estimator.setSearchMethod(tree);
+    normal_estimator.setInputCloud(CAD_cloud);
+    normal_estimator.setKSearch(50);
+    normal_estimator.compute(*normals);
+
+    pcl::IndicesPtr indices (new std::vector <int>);
+
+    pcl::PassThrough<pcl::PointXYZRGB> pass;
+    pass.setInputCloud(CAD_cloud);
+    pass.setFilterFieldName("z");
+    pass.setFilterLimits(0.0, 2.0);
+    pass.filter(*indices);
+
+
     ///////////////////////////////////////////////////////////////////////////////
 
     //pcl::PointCloud <pcl::PointXYZRGB>::Ptr colored_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
@@ -548,10 +563,6 @@ std::vector<geometry_msgs::Pose> handle_sampler::getSolution(unsigned int _objNu
     //copyPointCloud(*candidate_cloud, *colored_cloud);
     // 올바르게 Handle만 추출 되었는가???? 검증하는 Publisher
 
-    
-
-    std::cout<<"seg ended  :"<<cloud->size()<<std::endl;
-
     /////////////////////////// plane segmentation to get orientation /////////////////////////////
     // Find the planar coefficients for floor plane
 
@@ -623,14 +634,14 @@ std::vector<geometry_msgs::Pose> handle_sampler::getSolution(unsigned int _objNu
     pcl::RandomSample<pcl::PointXYZRGB> sample_points;
 
     pcl::PointCloud <pcl::PointXYZRGB>::Ptr sampled_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
-    sample_points.setInputCloud(cloud);
+    sample_points.setInputCloud(CAD_cloud);
     sample_points.setSample(NUM_FOR_SAMPLING);
     sample_points.filter(*sampled_cloud);
 
     /// Handle Parmeter를 만족하는 가?
 
     /// Give Handle Configuration
-    for(unsigned int i = 0; i < NUM_FOR_SAMPLING ; i++)
+    for(unsigned int i = 0; i < sampled_cloud->size() ; i++)
     {
         handle_candidate.at(i).position.x = sampled_cloud->at(i).x;
         handle_candidate.at(i).position.y = sampled_cloud->at(i).y;
@@ -641,5 +652,189 @@ std::vector<geometry_msgs::Pose> handle_sampler::getSolution(unsigned int _objNu
         handle_candidate.at(i).orientation.z = quat.z();
     }
 
+
+    //////////////////////////////////////////// Feature Matching with Current CLoud (SHOT)///////////////////////////////
+    // SHOT is RUBUST POSE Estimator
+
+    double resolution = computeCloudResolution(cloud);
+    float model_ss_  = 0.01f*resolution;
+    float scene_ss_ = 0.03f*resolution;
+    float rf_rad_ = 0.015f*resolution;
+    float descr_rad_ = 0.02f*resolution;
+    float cg_size_ = 0.01f*resolution;
+    float cg_thresh_ = 5.0f*resolution;
+
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr model_keypoints (new pcl::PointCloud<pcl::PointXYZRGB>);
+
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr scene_keypoints (new pcl::PointCloud<pcl::PointXYZRGB>);
+
+    pcl::PointCloud<pcl::Normal>::Ptr model_normals (new pcl::PointCloud<pcl::Normal>);
+    pcl::PointCloud<pcl::Normal>::Ptr scene_normals (new pcl::PointCloud<pcl::Normal>);
+    
+    pcl::PointCloud<pcl::SHOT352>::Ptr model_descriptors (new pcl::PointCloud<pcl::SHOT352>);
+    pcl::PointCloud<pcl::SHOT352>::Ptr scene_descriptors (new pcl::PointCloud<pcl::SHOT352>);
+
+    pcl::NormalEstimationOMP<pcl::PointXYZRGB, pcl::Normal> norm_est;
+    norm_est.setKSearch(10);
+    norm_est.setInputCloud(CAD_process_cloud);
+    norm_est.compute(*model_normals);
+
+    norm_est.setInputCloud(cloud);
+    norm_est.compute(*scene_normals);
+
+    pcl::UniformSampling<pcl::PointXYZRGB> uniform_sampling;
+    uniform_sampling.setInputCloud(CAD_process_cloud);
+    uniform_sampling.setRadiusSearch(model_ss_);
+    uniform_sampling.filter(*model_keypoints);
+
+    uniform_sampling.setInputCloud(cloud);
+    uniform_sampling.setRadiusSearch(scene_ss_);
+    uniform_sampling.filter(*scene_keypoints);
+
+    pcl::SHOTEstimationOMP<pcl::PointXYZRGB, pcl::Normal, pcl::SHOT352> descr_est;
+    descr_est.setRadiusSearch(descr_rad_);
+
+    descr_est.setInputCloud(model_keypoints);
+    descr_est.setInputNormals(model_normals);
+    descr_est.setSearchSurface(CAD_process_cloud);
+    descr_est.compute(*model_descriptors);
+
+    descr_est.setInputCloud(scene_keypoints);
+    descr_est.setInputNormals(scene_normals);
+    descr_est.setSearchSurface(cloud);
+    descr_est.compute (*scene_descriptors);
+
+    pcl::CorrespondencesPtr model_scene_corrs (new pcl::Correspondences ());
+
+    pcl::KdTreeFLANN<pcl::SHOT352> match_search;
+    match_search.setInputCloud (model_descriptors);
+
+    //  For each scene keypoint descriptor, find nearest neighbor into the model keypoints descriptor cloud and add it to the correspondences vector.
+
+    for (std::size_t i = 0; i < scene_descriptors->size (); ++i)
+    {
+        std::vector<int> neigh_indices (1);
+        std::vector<float> neigh_sqr_dists (1);
+        if (!std::isfinite (scene_descriptors->at (i).descriptor[0])) //skipping NaNs
+        {
+            continue;
+        }
+        int found_neighs = match_search.nearestKSearch (scene_descriptors->at (i), 1, neigh_indices, neigh_sqr_dists);
+        if(found_neighs == 1 && neigh_sqr_dists[0] < 0.25f) //  add match only if the squared descriptor distance is less than 0.25 (SHOT descriptor distances are between 0 and 1 by design)
+        {
+            pcl::Correspondence corr (neigh_indices[0], static_cast<int> (i), neigh_sqr_dists[0]);
+            model_scene_corrs->push_back (corr);
+        }
+    }
+
+    std::vector<Eigen::Matrix4f, Eigen::aligned_allocator<Eigen::Matrix4f> > rototranslations;
+    std::vector<pcl::Correspondences> clustered_corrs;
+
+    pcl::PointCloud<pcl::ReferenceFrame>::Ptr model_rf (new pcl::PointCloud<pcl::ReferenceFrame>);
+    pcl::PointCloud<pcl::ReferenceFrame>::Ptr scene_rf (new pcl::PointCloud<pcl::ReferenceFrame>);
+
+    pcl::BOARDLocalReferenceFrameEstimation<pcl::PointXYZRGB, pcl::Normal, pcl::ReferenceFrame> rf_est;
+    rf_est.setFindHoles (true);
+    rf_est.setRadiusSearch (rf_rad_);
+
+    rf_est.setInputCloud (model_keypoints);
+    rf_est.setInputNormals (model_normals);
+    rf_est.setSearchSurface (CAD_process_cloud);
+    rf_est.compute (*model_rf);
+
+    rf_est.setInputCloud (scene_keypoints);
+    rf_est.setInputNormals (scene_normals);
+    rf_est.setSearchSurface (cloud);
+    rf_est.compute (*scene_rf);
+
+    //  Clustering
+    pcl::Hough3DGrouping<pcl::PointXYZRGB, pcl::PointXYZRGB,pcl::ReferenceFrame,pcl::ReferenceFrame> clusterer;
+    clusterer.setHoughBinSize (cg_size_);
+    clusterer.setHoughThreshold (cg_thresh_);
+    clusterer.setUseInterpolation (true);
+    clusterer.setUseDistanceWeight (false);
+
+    clusterer.setInputCloud (model_keypoints);
+    clusterer.setInputRf (model_rf);
+    clusterer.setSceneCloud (scene_keypoints);
+    clusterer.setSceneRf (scene_rf);
+    clusterer.setModelSceneCorrespondences (model_scene_corrs);
+
+    //clusterer.cluster (clustered_corrs);
+    clusterer.recognize (rototranslations, clustered_corrs);
+
+
+    if(rototranslations.size() <= 0)
+    {
+       std::cout<<"Matching Error No Fine Model Finded"<<std::endl;
+       return std::vector<geometry_msgs::Pose>(0);
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////
+
+    // Print the rotation matrix and translation vector
+    Eigen::Matrix3f rotation = rototranslations[0].block<3,3>(0, 0);
+    Eigen::Vector3f translation = rototranslations[0].block<3,1>(0, 3);
+
+    for(unsigned int i = 0; i < sampled_cloud->size() ; i++)
+    {
+        Eigen::Affine3f T_OO;
+        T_OO.translation() << handle_candidate.at(i).position.x,handle_candidate.at(i).position.y,handle_candidate.at(i).position.z;
+        T_OO.linear() = Eigen::Quaternionf(handle_candidate.at(i).orientation.w
+            ,handle_candidate.at(i).orientation.x,handle_candidate.at(i).orientation.y,handle_candidate.at(i).orientation.z).toRotationMatrix();
+
+        Eigen::Affine3f T_icp;
+        T_icp.translation() = translation;
+        T_icp.linear() = rotation;
+
+        T_OO = T_OO * T_icp;
+
+        Eigen::Translation3f trans = Eigen::Translation3f(T_OO.translation());
+        Eigen::Quaternionf quat = Eigen::Quaternionf(T_OO.rotation());
+
+
+        handle_candidate.at(i).position.x = trans.x();
+        handle_candidate.at(i).position.x = trans.x();
+        handle_candidate.at(i).position.x = trans.x();
+
+        handle_candidate.at(i).orientation.x = quat.x();
+        handle_candidate.at(i).orientation.y = quat.y();
+        handle_candidate.at(i).orientation.z = quat.z();
+        handle_candidate.at(i).orientation.w = quat.w();
+    }
+
+
+    /////////////////////////////// Output Recifyed /////////////////////////////////////////////////////
     return handle_candidate;
+}
+
+double handle_sampler::computeCloudResolution (const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr &cloud)
+{
+  double res = 0.0;
+  int n_points = 0;
+  int nres;
+  std::vector<int> indices (2);
+  std::vector<float> sqr_distances (2);
+  pcl::search::KdTree<pcl::PointXYZRGB> tree;
+  tree.setInputCloud(cloud);
+
+  for (std::size_t i = 0; i < cloud->size (); ++i)
+  {
+    if (! std::isfinite ((*cloud)[i].x))
+    {
+      continue;
+    }
+    //Considering the second neighbor since the first is the point itself.
+    nres = tree.nearestKSearch (i, 2, indices, sqr_distances);
+    if (nres == 2)
+    {
+      res += sqrt (sqr_distances[1]);
+      ++n_points;
+    }
+  }
+  if (n_points != 0)
+  {
+    res /= n_points;
+  }
+  return res;
 }

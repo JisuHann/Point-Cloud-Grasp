@@ -33,9 +33,11 @@
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
 #include <pcl/io/pcd_io.h>
-#include <pcl/console/time.h> 
-
+#include <pcl/console/time.h>
+#include <pcl/console/parse.h> 
+#include <pcl/point_representation.h>
 #include <pcl/common/transforms.h>
+
 #include <pcl/ModelCoefficients.h>
 
 #include <pcl/search/search.h>
@@ -47,6 +49,9 @@
 
 #include <pcl/features/normal_3d.h>
 #include <pcl/features/moment_of_inertia_estimation.h>
+#include <pcl/features/normal_3d_omp.h>
+#include <pcl/features/shot_omp.h>
+#include <pcl/features/board.h>
 
 #include <pcl/segmentation/sac_segmentation.h>
 #include <pcl/segmentation/region_growing.h>
@@ -61,14 +66,23 @@
 #include <pcl/filters/extract_indices.h>
 #include <pcl/filters/random_sample.h>
 #include <pcl/filters/voxel_grid.h>
+#include <pcl/filters/uniform_sampling.h>
 
 #include <pcl/registration/icp.h>
+#include <pcl/registration/icp_nl.h>
+#include <pcl/registration/transforms.h>
+
+#include <pcl/recognition/cg/hough_3d.h>
+#include <pcl/recognition/cg/geometric_consistency.h>
 
 // KDL header
 #include <kdl/chain.hpp>
 #include <kdl/chainfksolver.hpp>
 #include <kdl/chainfksolverpos_recursive.hpp>
 #include <kdl/frames_io.hpp>
+
+#include <pcl/kdtree/kdtree_flann.h>
+#include <pcl/kdtree/impl/kdtree_flann.hpp>
 
 const double FINGER_LEN_X     = 0.02;
 const double FINGER_LEN_Y     = 0.02;
@@ -86,7 +100,7 @@ class handle_sampler
     ~handle_sampler(){};
 
     inline pcl::PointCloud<pcl::PointXYZRGB>::Ptr getCloud(){return roi_cloud_;};
-    inline void setGraspViusual(bool _sig){grasp_visualization_ = _sig;};
+    inline void setGraspViusual(bool _sig){original_color_visualization_ = _sig;};
 
     void InitRobotKinematics(KDL::JntArray _nominal, KDL::Chain _robot_chain);
 
@@ -105,6 +119,8 @@ class handle_sampler
 
     ///////////// function ///////////////////////////////
 
+    double computeCloudResolution (const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr &cloud);
+
     void reigon_cb(const gb_visual_detection_3d_msgs::BoundingBoxes3dConstPtr &_objpose);
     void cloud_cb(const sensor_msgs::PointCloud2ConstPtr& msg);
 
@@ -117,7 +133,6 @@ class handle_sampler
     ros::Publisher handle_cloud_;
     ros::Publisher grasp_pub_;
 
-    ros::Publisher grasp_test;
 
     ros::Subscriber yolo_detection_sub_;
     ros::Subscriber kinect_cloud_sub_;
@@ -145,5 +160,8 @@ class handle_sampler
     bool original_color_visualization_;
     int  detected_obj_num_;
     int  target_object_num_;
+
+    // for Load Cad Model
+    int saveNum;
 
 };
