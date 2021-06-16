@@ -3,7 +3,7 @@
 
   <node name="graspSampling" pkg="roi_extractor" type="graspSampling" output="screen" >
     <param name="target_obj_num" type="int" value="0"/> 
-    <param name="original_color_visualization" type = "bool" value="false"/> <!-- defualt = false-->
+    <param name="original_color_visualization" type = "bool" value="true"/> <!-- defualt = false-->
   </node>
 
   <!--<include file="$(find realsense2_camera)/launch/rs_rgbd_custom.launch">

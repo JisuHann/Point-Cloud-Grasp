@@ -69,5 +69,5 @@ include_directories(
 
 
 add_executable(graspSampling src/main.cpp ${SRCS} ${HEADS})
-target_link_libraries(graspSampling sampling ${PCL_LIBRARIES})
+target_link_libraries(graspSampling sampling)
 
