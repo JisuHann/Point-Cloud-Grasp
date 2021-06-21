@@ -354,7 +354,7 @@ std::vector<geometry_msgs::Pose> handle_sampler::getSolution(unsigned int _objNu
     //     return handle_candidate;
     // }
 
-    if(result_.at(_objNum).door_type_ == STICK) //result_.at(_objNum).door_type_
+    if(result_.at(_objNum).door_type_ == HANDLE) //result_.at(_objNum).door_type_
     {
         if (pcl::io::loadPCDFile<pcl::PointXYZRGB>("/home/min/catkin_ws/src/MODEL/Handle.pcd", *CAD_cloud) == -1) //* load the file
         {
@@ -362,7 +362,7 @@ std::vector<geometry_msgs::Pose> handle_sampler::getSolution(unsigned int _objNu
             return handle_candidate;
         }
     }
-    else if(result_.at(_objNum).door_type_ == HANDLE)
+    else if(result_.at(_objNum).door_type_ == STICK)  
     {
         if (pcl::io::loadPCDFile<pcl::PointXYZRGB>("/home/min/catkin_ws/src/MODEL/refri.pcd", *CAD_cloud) == -1) //* load the file
         {
@@ -377,9 +377,23 @@ std::vector<geometry_msgs::Pose> handle_sampler::getSolution(unsigned int _objNu
     sor.setLeafSize(0.01f, 0.01f, 0.01f);
     sor.filter(*CAD_cloud);
 
+
+    pcl::StatisticalOutlierRemoval<pcl::PointXYZRGB> removalstatistical;
+    removalstatistical.setInputCloud (CAD_cloud);
+    removalstatistical.setMeanK (50);
+    removalstatistical.setStddevMulThresh (2.0);
+    removalstatistical.filter (*CAD_cloud);
+
     sor.setInputCloud(cloud);
     sor.setLeafSize(0.01f, 0.01f, 0.01f);
     sor.filter(*cloud);
+
+    removalstatistical.setInputCloud (cloud);
+    removalstatistical.setMeanK (50);
+    removalstatistical.setStddevMulThresh (2.0);
+    removalstatistical.filter (*cloud);
+
+
 
     cloud = result_.at(_objNum).obj_cloud_;
     copyPointCloud(*result_.at(_objNum).obj_cloud_,*cloud);
@@ -482,10 +496,8 @@ std::vector<geometry_msgs::Pose> handle_sampler::getSolution(unsigned int _objNu
         extract.setIndices(inliers);
         extract.setNegative (false);
         extract.filter(*CAD_cloud);
-        RP <<  1,              0, 0,
-                 0,  cos(90) , sin(90),
-                 0,  -sin(90), cos(90);
-        orientation = Eigen::Quaternionf(0.503903,-0.495908,-0.509718,-0.49025);
+        //orientation = Eigen::Quaternionf(0.503903,-0.495908,-0.509718,-0.49025);
+        orientation = Eigen::Quaternionf(0.700804,-0.0112836,0.713179,-0.0110878);
         break;
     case HANDLE:
         std::cout<<"handle"<<std::endl;
