@@ -1,0 +1,3 @@
+sensor_msgs/JointState current_arm_joint_state
+---
+geometry_msgs/Point grasp_pose
