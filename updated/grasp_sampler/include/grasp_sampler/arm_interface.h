@@ -16,8 +16,13 @@ public:
     inline void setT_BC_Kinematics(KDL::Frame _T_BC_frame){arm_kinematics_solver_->setT_BC_frame(_T_BC_frame); };  
 
     // door planner server
-    bool calcGraspPose(task_assembly::door_open_planner::Request &req);
 private:
+    bool calcGraspPose(task_assembly::door_open_planner::Request &req ,task_assembly::door_open_planner::Response &res);
+
+    //ros 
+    ros::ServiceServer service_;
+
+    //custom solver
     kinematics_sovler* arm_kinematics_solver_;
     handle_sampler* door_handle_sampler_;       /// <=== Realtime?? Ehthernet Comm
 

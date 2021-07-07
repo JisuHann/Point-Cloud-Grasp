@@ -26,7 +26,7 @@ rate_(_hz)
     ///////////////////// allocate  Matrix //////////////////////////////////////////////////////////////
 
     T_BC_.resize(4,4);
-
+    std::cout<<"it's me !"<<std::endl;
     //////////////////////////////////////////////////////////////////////////////////////////////////////
 }
 
@@ -214,7 +214,12 @@ void handle_sampler::reigon_cb(const task_assembly::BoundingBoxes3dConstPtr &_ob
         grasp_.color.b = 0.0;
         grasps_.markers.push_back(grasp_);
     }
+
+    // tmp
     grasp_result_ = graspPoints.at(0);
+    std::cout<<"grasp configuration  x : "<<grasp_result_.position.x
+    <<"  y: "<<grasp_result_.position.y<<"   z: "<<grasp_result_.position.z<<std::endl;
+
     grasp_pub_ .publish(grasps_);
 }
 
@@ -534,7 +539,6 @@ std::vector<geometry_msgs::Pose> handle_sampler::getSolution(unsigned int _objNu
 
     if (icp.hasConverged ())
     {
-        //std::cout << "\n Is score is " << icp.getFitnessScore () << std::endl;
         transformation_matrix = icp.getFinalTransformation ().cast<float>();
         // to get the mean squared distances from the points of the two clouds.
         std::cout << "\nICP converged score " << icp.getFitnessScore() << std::endl;
@@ -561,7 +565,7 @@ std::vector<geometry_msgs::Pose> handle_sampler::getSolution(unsigned int _objNu
         T_OO.translation() << CAD_cloud->at(i).x,CAD_cloud->at(i).y,CAD_cloud->at(i).z;
         T_OO.linear() = orientation.toRotationMatrix();
 
-        std::cout<<"transform\n"<<T_icp.matrix()<<std::endl;
+        //std::cout<<"transform\n"<<T_icp.matrix()<<std::endl;
 
         T_OO =  T_icp.inverse()*T_OO ;
 

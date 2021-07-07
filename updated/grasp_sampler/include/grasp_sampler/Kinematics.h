@@ -21,6 +21,15 @@
 #include <kdl/chainfksolverpos_recursive.hpp>
 #include <kdl/chainiksolvervel_pinv.hpp>
 
+// pcl headers includes
+#include "pcl_headers.h"
+
+// standard header
+#include <iomanip>
+#include <iostream>
+#include <map>
+#include <random>
+
 // franka panda Header
 
 using namespace RigidBodyDynamics;
@@ -33,8 +42,9 @@ class kinematics_sovler
    
     // Eigen::Matrix4f getCurT_BC();
 
+    void initializeData(task_assembly::door_open_planner::Request &req);
     bool solveIK(geometry_msgs::Pose _goal_info);
-    Eigen::Matrix4f solveFK();
+    Eigen::Matrix4f solveFK(KDL::JntArray _joint_val);
     // void solveInverseDynamics();
     // void solveFowardDynamics();
 
@@ -70,7 +80,6 @@ class kinematics_sovler
     void initModel();
     void calcReachability();
     //solve Grasp problem in given scence
-    void initializeData(task_assembly::door_open_planner::Request &req);
     bool initializeIKparam(const std::string& base_link, const std::string& tip_link, const std::string& URDF_param);
     //void computeReability();
 
@@ -102,9 +111,15 @@ class kinematics_sovler
     /////////////// base to camera /////////////////
     KDL::Frame T_BC_Frame_;
 
+    //double l2norm_;
+
+    pcl::PointCloud <pcl::PointXYZRGB>::Ptr reachability_cloud_;
+
     //params
     double eps = 5e-3;
 	double num_samples = 100;
+    int nb_of_sampling_points_ = 150000;
+    int nb_of_clusters_ =0;
 };
 
 

@@ -1,0 +1,21 @@
+<!-- 
+<!-- <?xml version="1.0"?>
+<launch>
+
+  <!-- load hardward descriptor -->
+  <param name="franka_arm_description" command="$(find xacro)/xacro.py '$(find franka_description)/robots/panda_arm.urdf.xacro'"/>
+  <param name="urdf_param" value="/franka_arm_description"/> 
+
+  <node pkg="grasp_sampler" type="door_grasp_planner" name="door_grasp_planner" output="screen">
+    <!-- load hardward descriptor path -->
+    <param name="yaml_path" type="string" value="$(find grasp_sampler)/config/hw_param.yaml"/>
+  </node>
+
+   <!-- kinect node launch -->
+   <!-- <include file="$(find realsense2_camera)/launch/rs_rgbd.launch">
+   </include> -->
+
+   <!-- YOLO node launch -->
+   <!-- <include file="$(find darknet_ros_3d)/launch/darknet_ros_3d.launch">
+   </include> -->
+</launch> --> -->

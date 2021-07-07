@@ -53,10 +53,11 @@ catkin_package(
 set(SRCS
     src/Kinematics.cpp
     src/RosBridge.cpp
-    src/main.cpp
     src/Utils.cpp
     src/GraspSample.cpp
     src/arm_interface.cpp
+#    src/main.cpp
+#    src/graspCient.cpp
 )
 
 set(HEADS
@@ -89,5 +90,17 @@ include_directories(
   ${orocos_kdl_INCLUDE_DIRS}
 )
 
-add_executable(door_grasp_planner src/main.cpp ${SRCS} ${HEADS})
-target_link_libraries(door_grasp_planner doorPlanner)
+#Server
+add_executable(GraspSamplerServer src/GraspSamplerServer.cpp)
+target_link_libraries(GraspSamplerServer doorPlanner ${catkin_LIBRARIES} yaml-cpp)
+add_dependencies(GraspSamplerServer task_assembly_generate_messages_cpp)
+
+#for Test
+# add_executable(testServer src/test.cpp)
+# target_link_libraries(testServer doorPlanner ${catkin_LIBRARIES} yaml-cpp)
+# add_dependencies(testServer task_assembly_generate_messages_cpp)
+
+#Client
+add_executable(GraspSamplerClient src/GraspSamplerClient.cpp)
+target_link_libraries(GraspSamplerClient doorPlanner ${catkin_LIBRARIES} yaml-cpp)
+add_dependencies(GraspSamplerClient task_assembly_generate_messages_cpp)

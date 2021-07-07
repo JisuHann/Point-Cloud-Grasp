@@ -4,7 +4,13 @@ kinematics_sovler::kinematics_sovler(YAMLConfig &config):
 config_(config)
 {
     initModel();
-	calcReachability();
+
+	///////// parameter initialize ////////////////////////////
+
+
+	///////// memory allocate /////////////////////////////////
+
+	reachability_cloud_ = pcl::PointCloud <pcl::PointXYZRGB>::Ptr(new pcl::PointCloud<pcl::PointXYZRGB>);
 }
 
 void kinematics_sovler::initModel()
@@ -38,6 +44,9 @@ void kinematics_sovler::initModel()
 
 	end_effector_id_ = rbdl_model_.GetBodyId((config_.chain_end).c_str());
 	arm_base_frame_id_ = rbdl_model_.GetBodyId((config_.chain_start).c_str());
+
+	// std::cout<<"nb of joints  "<<nb_of_joints_<<std::endl;
+	// std::cout<<"ee_frame_num  "<<(int)end_effector_id_<<"  b_Frame_num "<<(int)arm_base_frame_id_<<std::endl;
 
 	if (rbdl_model_.IsFixedBodyId(end_effector_id_))
 	{
@@ -85,7 +94,7 @@ void kinematics_sovler::initializeData(task_assembly::door_open_planner::Request
 	joint_limit_.upper_rad_ = joint_limit_.upper_ / 180.0*M_PI;
 
 	this->initializeIKparam(config_.chain_start, config_.chain_end, urdf_param_);
-
+	calcReachability();
 }
 
 bool kinematics_sovler::initializeIKparam(const std::string& base_link, const std::string& tip_link, const std::string& URDF_param)
@@ -192,11 +201,12 @@ Eigen::Matrix4f kinematics_sovler::Frame2Eigen(KDL::Frame &frame)
     return H_trans;
 }
 
-Eigen::Matrix4f kinematics_sovler::solveFK()
+Eigen::Matrix4f kinematics_sovler::solveFK(KDL::JntArray _joint_val)
 {
-    robot_joint_val_= cur_joint_val_;
+    //robot_joint_val_= cur_joint_val_;
+	robot_joint_val_ = _joint_val;
 
-    KDL::ChainFkSolverPos_recursive Fksolver = KDL::ChainFkSolverPos_recursive(FK_chain_);
+    KDL::ChainFkSolverPos_recursive Fksolver = KDL::ChainFkSolverPos_recursive(IK_chain);
 
     if(Fksolver.JntToCart(robot_joint_val_,T_BC_Frame_) < 0)
         std::cerr<<"Fk about robot Model Failed!!!!"<<std::endl;
@@ -207,6 +217,41 @@ Eigen::Matrix4f kinematics_sovler::solveFK()
 
 bool kinematics_sovler::solveIK(geometry_msgs::Pose _goal_info)
 {
+	/////////////////// check reachability /////////////////////////////////////////
+
+	pcl::PointCloud <pcl::PointXYZRGB>::Ptr copy_reachability_cloud_(new pcl::PointCloud<pcl::PointXYZRGB>);
+	copyPointCloud(*reachability_cloud_, *copy_reachability_cloud_);
+	// for test
+	pcl::PointXYZRGB point;
+	point.x = _goal_info.position.x;
+	point.y = _goal_info.position.y;
+	point.z = _goal_info.position.z;
+	point.r = 255;	
+	point.g = 0;
+	point.b = 0;
+	copy_reachability_cloud_->push_back(point);
+
+	pcl::search::KdTree<pcl::PointXYZRGB>::Ptr tree(new pcl::search::KdTree<pcl::PointXYZRGB>);
+  	tree->setInputCloud(copy_reachability_cloud_);
+
+	std::vector<pcl::PointIndices> cluster_indicese; 
+	pcl::EuclideanClusterExtraction<pcl::PointXYZRGB> ec;
+	ec.setInputCloud(copy_reachability_cloud_);       // 입력   
+	ec.setClusterTolerance(0.05);  // 5cm  
+	ec.setMinClusterSize(1);     // 최소 포인트 수 
+	ec.setMaxClusterSize(200000);   // 최대 포인트 수
+	ec.setSearchMethod(tree);      // 위에서 정의한 탐색 방법 지정 
+	ec.extract(cluster_indicese);   // 군집화 적용 
+
+	if(cluster_indicese.size() > nb_of_clusters_)
+	{
+		std::cout<<"reachability error ocurred !!!"<<std::endl;
+		return false;
+	}
+
+	////////////////////////////////////////////////////////////////////////////////
+
+
 	KDL::Frame end_effector_pose;
 	KDL::Rotation rot;
 
@@ -262,6 +307,12 @@ void kinematics_sovler::calcReachability()
 	std::cout<<"calculating reachability....."<<std::endl;
 	std::cout<<"sampling manipualtor configuration....."<<std::endl;
 
+	// Eigen::Vector3d link_com_pose;
+
+	// for(unsigned int joint_num = 1 ; joint_num < 8 ; joint_num++)
+	// {
+
+	// }
 	// Sphere 
 	// 1. calc L2 norm
 	// 2. if robot base to grasp pose Euclidean dist > L2 norm IK not Exist  
@@ -271,19 +322,87 @@ void kinematics_sovler::calcReachability()
 	// 2. make 3d polygon from points 
 	// 3. show grasp pose is in 3d polygon area 
 	
-	// sampling random configuration
+	/////// sampling random configuration/////////////////////////////////////////////////////////
+	
 	KDL::JntArray nominal(IK_chain.getNrOfJoints());
-	std::vector<double> R;
 
-	for (int i = 0; i < IK_chain.getNrOfJoints(); i++)		//Sampling Random 시작 위치
+	int sampling_cnt = 0;
+	while(sampling_cnt < nb_of_sampling_points_)
 	{
-		double jointrange = joint_limit_.upper_rad_(i) - joint_limit_.lower_rad_(i); // angle
-		double r = ((double)rand() / (double)RAND_MAX) * jointrange;			//normalized Random value
-		R.push_back(joint_limit_.lower_rad_(i) + r);
-	}
+		std::vector<double> R;
+		for (int i = 0; i < IK_chain.getNrOfJoints(); i++)		//Sampling Random 시작 위치
+		{
+			double jointrange = joint_limit_.upper_rad_(i) - joint_limit_.lower_rad_(i); // angle
+			double r = ((double)rand() / (double)RAND_MAX) * jointrange;			//normalized Random value
+			R.push_back(joint_limit_.lower_rad_(i) + r);
+		}
 
-	for (size_t j = 0; j < nominal.data.size(); j++)
-	{
-		nominal(j) = R[j];
+		for (size_t j = 0; j < nominal.data.size(); j++)
+		{
+			nominal(j) = R[j];
+			//std::cout<<"joint val  "<<R[j]<<std::endl;
+		}
+
+		Eigen::Matrix4f FK_pose = solveFK(nominal);
+
+		//std::cout<<FK_pose<<std::endl;
+
+		pcl::PointXYZRGB point;
+		point.x = FK_pose(0,3);
+		point.y = FK_pose(1,3);
+		point.z = FK_pose(2,3);
+		point.r = 255;	
+		point.g = 0;
+		point.b = 0;
+
+		reachability_cloud_->push_back(point);
+		sampling_cnt++;	
+
 	}
+	std::cout<<"sampling done !!!"<<std::endl;
+	/////////////////////////////////////////////////////////////////////////////////////////////
+
+	////////////////////////// Clustering ///////////////////////////////////////////////////////
+	pcl::search::KdTree<pcl::PointXYZRGB>::Ptr tree(new pcl::search::KdTree<pcl::PointXYZRGB>);
+  	tree->setInputCloud(reachability_cloud_);
+
+	std::vector<pcl::PointIndices> cluster_indices;       // 군집화된 결과물의 Index 저장, 다중 군집화 객체는 cluster_indices[0] 순으로 저장 
+	// 군집화 오브젝트 생성  
+	pcl::EuclideanClusterExtraction<pcl::PointXYZRGB> ec;
+	ec.setInputCloud(reachability_cloud_);       // 입력   
+	ec.setClusterTolerance(0.05);  // 5cm  
+	ec.setMinClusterSize(1);     // 최소 포인트 수 
+	ec.setMaxClusterSize(200000);   // 최대 포인트 수
+	ec.setSearchMethod(tree);      // 위에서 정의한 탐색 방법 지정 
+	ec.extract(cluster_indices);   // 군집화 적용 
+	nb_of_clusters_ = cluster_indices.size();
+
+	std::cout << "nb of  clusters :"<<nb_of_clusters_<<std::endl;
+
+	// for test
+	// pcl::PointXYZRGB point;
+	// point.x = 1.6;
+	// point.y = 1.6;
+	// point.z = 1.6;
+	// point.r = 255;	
+	// point.g = 0;
+	// point.b = 0;
+	// reachability_cloud_->push_back(point);
+
+	// std::vector<pcl::PointIndices> cluster_indicese; 
+	// ec.setInputCloud(reachability_cloud_);       // 입력   
+	// ec.setClusterTolerance(0.05);  // 5cm  
+	// ec.setMinClusterSize(1);     // 최소 포인트 수 
+	// ec.setMaxClusterSize(200000);   // 최대 포인트 수
+	// ec.setSearchMethod(tree);      // 위에서 정의한 탐색 방법 지정 
+	// ec.extract(cluster_indicese);   // 군집화 적용 
+	// nb_of_clusters_ = cluster_indicese.size();
+
+	std::cout << "nb of  clusters  after :"<<nb_of_clusters_<<std::endl;
+
+	if(reachability_cloud_->size() > 0)
+    {
+        std::string save_path = "/home/dyros/tmp_ws/src/grasp_sampler/MODEL/reachability_cloud_";
+        pcl::io::savePCDFileASCII (save_path+".pcd", *reachability_cloud_);
+    }
 }

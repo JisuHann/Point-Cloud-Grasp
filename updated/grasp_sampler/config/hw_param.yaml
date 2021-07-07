@@ -3,6 +3,13 @@ urdf_path: package://franka_description/robots/panda_arm_rbdl.urdf  # for RBDL
 
 # Start & end chain for inverse kinematics
 chain_start: panda_link0  # base link     --> mobile base
+# chain_1: panda_link1
+# chain_2: panda_link2
+# chain_3: panda_link3
+# chain_4: panda_link4
+# chain_5: panda_link5
+# chain_6: panda_link6
+# chain_7: panda_link7
 chain_end: panda_link8    # end-effector link  -->ee_Frame
 
 # Joint limit
