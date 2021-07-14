@@ -1,5 +1,8 @@
 #include <math.h>
 
+#include <trajectory_msgs/JointTrajectory.h>
+#include <trajectory_msgs/JointTrajectoryPoint.h>
+
 // Custom Header
 #include "Kinematics.h"
 #include "GraspSample.h"
@@ -18,7 +21,7 @@ public:
     // door planner server
 private:
     bool calcGraspPose(task_assembly::door_open_planner::Request &req ,task_assembly::door_open_planner::Response &res);
-
+    // void excute_srvThread();
     //ros 
     ros::ServiceServer service_;
 
@@ -38,4 +41,8 @@ private:
 
 
     // State Feedback ///
+
+    //////////// thread setting /////////////////////////////////////////////////
+    // std::vector<std::thread> threads;
+    // std::mutex mutex_;
 };

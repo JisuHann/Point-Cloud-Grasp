@@ -15,11 +15,11 @@ RosBridge::~RosBridge()
 
 void RosBridge::qrtransformCallback(const fiducial_msgs::FiducialTransformArray::ConstPtr & msg)
 {
-    //std::cout << msg->transforms.size() <<std::endl;
-    //std::cout << msg->transforms[0].transform.rotation.x <<std::endl;
+    // std::cout << msg->transforms.size() <<std::endl;
+    // std::cout << msg->transforms[0].transform.rotation.x <<std::endl;
     
-    // TODO : handling the situation when there is "absent" data from Kinect
-    // TODO : handling the situation when there is "absent" data from Kinect
+    // // TODO : handling the situation when there is "absent" data from Kinect
+    // // TODO : handling the situation when there is "absent" data from Kinect
 
     
     // std::cout <<"\n";
@@ -130,11 +130,11 @@ void RosBridge::qrtransformCallback(const fiducial_msgs::FiducialTransformArray:
     //     x6 = upper_qr_p_hinge-x5;
     //     x6(2)=0;
 
-       // std::cout <<"qr_upper_husky : " << x1.transpose() << "\n" <<"qr_lower_husky : "<< x2.transpose() << "\n";
-       // std::cout <<"hd_upper_husky : " << x3.transpose() << "\n";
-       // std::cout <<"hinge_husky    : " << x4.transpose() << "\n";
-       // std::cout <<"qr_upper_hinge : " << x5.transpose() << "\n";
-       // std::cout <<"husky_hinge    : " << x6.transpose() << "\n";  
+    //    std::cout <<"qr_upper_husky : " << x1.transpose() << "\n" <<"qr_lower_husky : "<< x2.transpose() << "\n";
+    //    std::cout <<"hd_upper_husky : " << x3.transpose() << "\n";
+    //    std::cout <<"hinge_husky    : " << x4.transpose() << "\n";
+    //    std::cout <<"qr_upper_hinge : " << x5.transpose() << "\n";
+    //    std::cout <<"husky_hinge    : " << x6.transpose() << "\n";  
         
      
 }

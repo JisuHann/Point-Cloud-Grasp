@@ -5,6 +5,8 @@ config_(config)
 {
     initModel();
 
+	//////// motion planenr ///////////////////////////////////
+
 	///////// parameter initialize ////////////////////////////
 
 
@@ -40,7 +42,9 @@ void kinematics_sovler::initModel()
 	RigidBodyDynamics::Addons::URDFReadFromFile(urdf_absolute_path.c_str(), &rbdl_model_, false, false);
 
 	// Serial Robot DOF = nb_of_joint
-	nb_of_joints_ = config_.joint_limit_lower.size();
+	nb_of_joints_ = rbdl_model_.q_size;
+	rrt_.dofSize = nb_of_joints_;
+
 
 	end_effector_id_ = rbdl_model_.GetBodyId((config_.chain_end).c_str());
 	arm_base_frame_id_ = rbdl_model_.GetBodyId((config_.chain_start).c_str());
@@ -69,10 +73,15 @@ void kinematics_sovler::initModel()
 	std::cout << "Model Loaded" << std::endl;
 }
 
-void kinematics_sovler::initializeData(task_assembly::door_open_planner::Request &req)
+void kinematics_sovler::initializeData(task_assembly::door_open_planner::Request &req,geometry_msgs::Pose targetPose)
 {
+	// joint limit 
+	assert(nb_of_joints_ == config_.joint_limit_lower.size());
+	assert(nb_of_joints_ == config_.joint_limit_upper.size());
+
 	int nb_of_joint_val = req.current_arm_joint_state.position.size();
 
+	// current joint state update
 	cur_joint_val_ = KDL::JntArray(nb_of_joint_val);
 
 	for(unsigned int jnt_num = 0 ;jnt_num < nb_of_joint_val; jnt_num++)
@@ -92,6 +101,52 @@ void kinematics_sovler::initializeData(task_assembly::door_open_planner::Request
 	// Deg to rad
 	joint_limit_.lower_rad_ = joint_limit_.lower_ / 180.0*M_PI;
 	joint_limit_.upper_rad_ = joint_limit_.upper_ / 180.0*M_PI;
+
+	joint_state_.qInit_.resize(req.current_arm_joint_state.position.size());
+	for (int i =0;i<req.current_arm_joint_state.position.size();i++)
+		joint_state_.qInit_(i) = req.current_arm_joint_state.position[i];
+
+	output_trajectory_.joint_names = req.current_arm_joint_state.name;
+
+	// initial pose &  target pose in Global frame
+	init_pose_.translation() = CalcBodyToBaseCoordinates(rbdl_model_, joint_state_.qInit_, end_effector_id_, end_effector_com_, true);
+	init_pose_.linear() = CalcBodyWorldOrientation(rbdl_model_ , joint_state_.qInit_, end_effector_id_, true).transpose();
+
+	target_pose_.translation()(0) = targetPose.position.x;
+	target_pose_.translation()(1) = targetPose.position.y;
+	target_pose_.translation()(2) = targetPose.position.z;
+	Eigen::Quaterniond quat(targetPose.orientation.w,targetPose.orientation.x, targetPose.orientation.y, targetPose.orientation.z);
+	target_pose_.linear() = quat.toRotationMatrix();
+
+
+	// link data (link dimension)
+	rrt_.box_num_link = config_.link_name.size();
+	for (int i=0;i<rrt_.box_num_link;i++){
+		Vector3d link_dim;
+		for (int j=0;j<config_.link_dimension[i].size();j++){
+			link_dim(j) =  config_.link_dimension[i][j];
+			rrt_.Box_link[i].vCenter(j) = config_.link_position[i][j];
+		}
+
+		rrt_.Box_link[i].vRot = rotateXaxis(config_.link_orientation[i][0])*rotateYaxis(config_.link_orientation[i][1])*rotateZaxis(config_.link_orientation[i][2]);
+		rrt_.Box_link[i].fAxis = link_dim;
+	}
+
+
+	// Trajectory library 
+	interpolate_path_ = req.interpolate_path.data;
+
+	maxVelocity.resize(nb_of_joints_);
+	maxVelocity.setZero();
+	maxAcceleration.resize(nb_of_joints_);
+	maxAcceleration.setZero();
+	for (size_t i = 0; i < nb_of_joints_; i++)
+	{
+		maxAcceleration(i) = 10.0;
+		maxVelocity(i) = 10.0;
+	}
+	wayPoints.clear();
+	playTime_ = 0.0;
 
 	this->initializeIKparam(config_.chain_start, config_.chain_end, urdf_param_);
 	calcReachability();
@@ -215,7 +270,7 @@ Eigen::Matrix4f kinematics_sovler::solveFK(KDL::JntArray _joint_val)
 	return Frame2Eigen(T_BC_Frame_);
 }
 
-bool kinematics_sovler::solveIK(geometry_msgs::Pose _goal_info)
+bool kinematics_sovler::solveIK(Transform3d _target_ee_pose, Robotmodel& model)
 {
 	/////////////////// check reachability /////////////////////////////////////////
 
@@ -223,9 +278,9 @@ bool kinematics_sovler::solveIK(geometry_msgs::Pose _goal_info)
 	copyPointCloud(*reachability_cloud_, *copy_reachability_cloud_);
 	// for test
 	pcl::PointXYZRGB point;
-	point.x = _goal_info.position.x;
-	point.y = _goal_info.position.y;
-	point.z = _goal_info.position.z;
+	point.x = _target_ee_pose.translation().x();
+	point.y = _target_ee_pose.translation().y();
+	point.z = _target_ee_pose.translation().z();
 	point.r = 255;	
 	point.g = 0;
 	point.b = 0;
@@ -245,27 +300,26 @@ bool kinematics_sovler::solveIK(geometry_msgs::Pose _goal_info)
 
 	if(cluster_indicese.size() > nb_of_clusters_)
 	{
+		std::cout << "nb of  clusters :"<<nb_of_clusters_<<std::endl;
 		std::cout<<"reachability error ocurred !!!"<<std::endl;
 		return false;
 	}
 
 	////////////////////////////////////////////////////////////////////////////////
 
+	//track - IK params
+	double eps = 1e-7;
+	double num_samples = 100;
+	double timeout = 0.005;
+
+	std::string chain_start = config_.chain_start;
+	std::string chain_end= config_.chain_end;
 
 	KDL::Frame end_effector_pose;
-	KDL::Rotation rot;
-
-	//geometry info to KDL frma info
-
-	end_effector_pose.p(0) = _goal_info.position.x;
-	end_effector_pose.p(1) = _goal_info.position.y;
-	end_effector_pose.p(2) = _goal_info.position.z;
-
-	end_effector_pose.M = rot;
 
 	/////////////// setup track-ik //////////////////
-	TRAC_IK::TRAC_IK tracik_solver(config_.chain_start, config_.chain_end, urdf_param_,100,eps);
 
+	TRAC_IK::TRAC_IK tracik_solver(chain_start, chain_end, urdf_param_, timeout, eps);
 	bool valid = tracik_solver.getKDLChain(IK_chain);
 
 	if (!valid)
@@ -282,24 +336,111 @@ bool kinematics_sovler::solveIK(geometry_msgs::Pose _goal_info)
 		return false;
 	}
 
+	//////// setup target configuration ////////////////////////////
+
+	Eigen::Matrix4d target_global;
+	target_global.block(0, 0, 3, 3) = _target_ee_pose.linear();
+	target_global.block(0, 3, 3, 1) = _target_ee_pose.translation();
+
+	for (int i = 0; i < 3; i++)
+	{
+		end_effector_pose.p(i) = target_global(i,3);
+	}
+
+	KDL::Rotation rot;
+	rot.data[0] = target_global(0, 0);
+	rot.data[1] = target_global(0, 1);
+	rot.data[2] = target_global(0, 2);
+	rot.data[3] = target_global(1, 0);
+	rot.data[4] = target_global(1, 1);
+	rot.data[5] = target_global(1, 2);
+	rot.data[6] = target_global(2, 0);
+	rot.data[7] = target_global(2, 1);
+	rot.data[8] = target_global(2, 2);
+	end_effector_pose.M = rot;
+
 	KDL::JntArray nominal(IK_chain.getNrOfJoints());
 
 	int rc;
 	double total_time = 0;
 	uint success = 0;
 	bool solved = true;
-	bool update = false;
 
-	nominal = cur_joint_val_;
+	nominal = cur_joint_val_;  //---> why?? 
 
-	rc = tracik_solver.CartToJnt(nominal, end_effector_pose, IK_result_);
+	// std::cout<<"nominal :"<<nominal.data(6)<<std::endl;
+	// std::cout<<"cur_joint_val_ :"<<cur_joint_val_.data(6)<<std::endl;
 
-	if (rc <= 0)
+	std::cout<<"solving IK..."<<std::endl;
+
+	// rc = tracik_solver.CartToJnt(nominal, end_effector_pose, IK_result_);
+
+	// if (rc <= 0)
+	// {
+	// 	std::cout<<"IK solution Not Exist!!!"<<std::endl;
+	// 	return false;
+	// }
+
+	// ROS_INFO_STREAM("IK solution is : " << result.data.transpose() * 180 / M_PI);
+	// std::cout<<IK_result_.data.transpose()<<std::endl;
+	// return true;
+
+	while(true) //for (uint i = 0; i < num_samples; i++)
 	{
-		std::cout<<"IK solution Not Exist!!!"<<std::endl;
-		return false;
+		if(--num_samples == 0){
+			solved = false;
+			break;
+		}
+
+		std::vector<double> R;
+		for (int i = 0; i < IK_chain.getNrOfJoints(); i++)
+		{
+			double jointrange = joint_limit_.upper_rad_(i) - joint_limit_.lower_rad_(i); // angle
+			double r = ((double)rand() / (double)RAND_MAX) * jointrange;
+			R.push_back(joint_limit_.lower_rad_(i) + r);
+		}
+
+		for (size_t j = 0; j < nominal.data.size(); j++)
+		{
+			nominal(j) = R[j];
+		}
+
+		//cout <<"iteration?" << endl;
+		double elapsed = 0;
+		rc = tracik_solver.CartToJnt(nominal, end_effector_pose, IK_result_);
+		// int CartToJnt(const KDL::JntArray &q_init, const KDL::Frame &p_in, KDL::JntArray &q_out, const KDL::Twist& bounds=KDL::Twist::Zero());
+		
+		std::vector<double> config;	
+		config.clear();
+
+		if (rc >= 0)
+		{
+			//ROS_INFO_STREAM("IK solution is : " << result.data.transpose() * 180 / M_PI);
+			for (int i = 0; i < nb_of_joints_; i++)
+			{
+				config.push_back(IK_result_.data(i) * 180 / M_PI);
+			}
+			
+			if (!rrt_.checkSelfCollision(model, config) )
+			{
+
+				ROS_INFO_STREAM("IK solution is : " << IK_result_.data.transpose() * 180 / M_PI);
+				joint_state_.qGoal_ = IK_result_.data;
+				solved = true;
+				break;
+			}
+			else
+			{
+				continue;
+			}
+
+		}
+		else
+		{
+			continue;
+		}
 	}
-	return true;
+	return solved;
 }
 
 void kinematics_sovler::calcReachability()
@@ -398,11 +539,202 @@ void kinematics_sovler::calcReachability()
 	// ec.extract(cluster_indicese);   // 군집화 적용 
 	// nb_of_clusters_ = cluster_indicese.size();
 
-	std::cout << "nb of  clusters  after :"<<nb_of_clusters_<<std::endl;
+	//std::cout << "nb of  clusters  after :"<<nb_of_clusters_<<std::endl;
 
 	if(reachability_cloud_->size() > 0)
     {
         std::string save_path = "/home/dyros/tmp_ws/src/grasp_sampler/MODEL/reachability_cloud_";
         pcl::io::savePCDFileASCII (save_path+".pcd", *reachability_cloud_);
     }
+	std::cout << "reachability claculation end"<<std::endl;
+}
+
+trajectory_msgs::JointTrajectory kinematics_sovler::generateTrajectory()
+{	
+	// get Body Id of Link
+	body_id_collision_.clear();
+	body_com_position_.clear();
+
+	for (std::vector<int>::size_type i = 0; i < config_.link_dimension.size(); i++)
+	{
+		body_id_collision_.push_back(rbdl_model_.GetBodyId(config_.link_name[i].c_str()));
+		body_com_position_.push_back(rbdl_model_.mBodies[rbdl_model_.GetBodyId(config_.link_name[i].c_str())].mCenterOfMass);
+	};
+
+	// push back end_effector
+	body_id_collision_.push_back(end_effector_id_);
+	body_com_position_.push_back(end_effector_com_);
+	
+	// Write the model data
+	rrt_model_.model_ = rbdl_model_;
+	rrt_model_.body_id_vec.clear();
+	rrt_model_.body_id_vec.assign(body_id_collision_.begin(), body_id_collision_.end());
+	rrt_model_.body_com_pos.clear();
+	rrt_model_.body_com_pos.assign(body_com_position_.begin(), body_com_position_.end());
+
+	std::vector<VectorXd> q_goal_set;
+	int nb_of_sols = 0 ;
+	for (int i = 0; i < 10; i++)
+	{
+		if (solveIK(target_pose_,rrt_model_) )
+		{
+			q_goal_set.push_back(joint_state_.qGoal_);
+			nb_of_sols ++;	
+		}
+	}
+
+	if (nb_of_sols == 0)
+	{
+		ROS_INFO_STREAM("IK solutions does not exist!!");
+		output_trajectory_.points.clear();
+		return output_trajectory_;
+	}
+
+	if (solveRRTwithMultipleGoals(joint_state_.qInit_, q_goal_set, joint_target_))
+	{
+		if (!interpolate_path_)
+		{
+			output_trajectory_.points.clear();
+			for (int i = 0; i < joint_target_.rows(); i++)
+			{
+				wayPoints.push_back(joint_target_.row(i));
+			}
+			trajectory_generator_ = new Trajectory(Path(wayPoints, 0.1), maxVelocity, maxAcceleration);
+			//	trajectory_generator_->outputPhasePlaneTrajectory();
+			duration_ = trajectory_generator_->getDuration();
+			//cout <<"duration" << duration_ << endl;
+			while (playTime_ / 10.0 < duration_)
+			{
+				trajectory_point_.positions.clear();
+				trajectory_point_.velocities.clear();
+
+				for (int i = 0; i < nb_of_joints_; i++)
+				{
+					trajectory_point_.positions.push_back(trajectory_generator_->getPosition(playTime_ / 10.0)[i]);
+					trajectory_point_.velocities.push_back(trajectory_generator_->getVelocity(playTime_ / 10.0)[i]);
+				}
+				trajectory_point_.time_from_start = ros::Duration(playTime_ / 10.0);
+
+				output_trajectory_.points.push_back(trajectory_point_);
+
+				playTime_++;
+			}
+		}
+		else
+		{
+			output_trajectory_.points.clear();
+
+			for (int i = 0; i < joint_target_.rows(); i++)
+			{
+				//q_tra = joint_target_.row(i) / 180.0 * M_PI;
+				// ee_pos = CalcBodyToBaseCoordinates(rbdl_model_, q_tra, end_effector_id_, end_effector_com_, true);
+				// cout << ee_pos.transpose() << endl;
+				cout <<"Path\t" << i << "\t" << "rad:" << joint_target_.row(i)/180.0*M_PI << endl;
+				cout << "Path\t" << i << "\t" << "angle:" << joint_target_.row(i) << endl;
+				//fprintf(fp1, "%f\t %f\t %f\t %f\t %f\t %f\t %f\t %f\t %f\t %f\t \n", joint_target2_(i, 0), joint_target2_(i, 1), joint_target2_(i, 2), joint_target2_(i, 3), joint_target2_(i, 4), joint_target2_(i, 5), joint_target2_(i, 6), ee_pos(0), ee_pos(1), ee_pos(2));
+				trajectory_point_.positions.clear();
+				for (int j = 0; j < joint_target_.cols(); j++)
+					trajectory_point_.positions.push_back(joint_target_(i, j));
+
+				output_trajectory_.points.push_back(trajectory_point_);
+			}
+		}
+
+	}
+	else
+	{
+		output_trajectory_.points.clear();
+	}
+
+	return output_trajectory_;
+}
+
+bool kinematics_sovler::setupRRT(Eigen::VectorXd q_start, Eigen::VectorXd q_goal, Eigen::MatrixXd& joint_target)
+{
+	rrt_.lower_limit = joint_limit_.lower_;
+	rrt_.upper_limit = joint_limit_.upper_;
+
+	rrt_.qinit = q_start;
+	rrt_.qgoal = q_goal;
+
+	ofstream outFile("path_result.txt", ios::out); // open file for "writing"
+	if (rrt_.solveRRT(rrt_model_, outFile))
+	{
+		ofstream outFile2("path_result2.txt", ios::out); // "writing"
+		// path_result -> Smooth -> path_result2
+		ifstream inFile("path_result.txt"); // "reading"
+		rrt_.smoothPath(outFile2, inFile);
+
+		outFile2.close();
+		MatrixXd joint_temp(100, nb_of_joints_);
+
+		ifstream inFile2("path_result2.txt"); // "reading"
+		int size = 0;
+		std::vector<std::string> parameters;
+		char inputString[1000];
+		while (!inFile2.eof())
+		{ // eof : end of file
+			inFile2.getline(inputString, 1000);
+			boost::split(parameters, inputString, boost::is_any_of(","));
+			if (parameters.size() == nb_of_joints_)
+			{
+				for (int j = 0; j < parameters.size(); j++)
+					joint_temp(size, j) = atof(parameters[j].c_str()); // c_str() : string -> char* // atof : char* -> float
+				size++;
+			}
+		}
+		//cout << "trajectory size" << size << endl;
+		inFile2.close();
+		joint_target = joint_temp.topLeftCorner(size, nb_of_joints_);
+		return true;
+	}
+	else
+	{
+		cout << "Time out!!" << endl;
+		return false;
+	}
+}
+
+bool kinematics_sovler::solveRRTwithMultipleGoals(Eigen::VectorXd q_start, std::vector<Eigen::VectorXd> q_goal_set, Eigen::MatrixXd& joint_target)
+{
+	rrt_.lower_limit = joint_limit_.lower_;
+	rrt_.upper_limit = joint_limit_.upper_;
+
+	rrt_.qinit = q_start;
+	rrt_.qgoals.assign(q_goal_set.begin(), q_goal_set.end());
+
+	ofstream outFile("path_result.txt", ios::out); // open file for "writing"
+
+	if (rrt_.solveRRT(rrt_model_, outFile))
+	{
+
+		outFile.close();
+		MatrixXd joint_temp(5000, nb_of_joints_);
+
+		ifstream inFile2("path_result.txt"); // "reading"
+		int size = 0;
+		std::vector<std::string> parameters;
+		char inputString[1000];
+		while (!inFile2.eof())
+		{
+			inFile2.getline(inputString, 50000);
+			boost::split(parameters, inputString, boost::is_any_of(","));
+			if (parameters.size() == nb_of_joints_)
+			{
+				for (int j = 0; j < parameters.size(); j++)
+					joint_temp(size, j) = atof(parameters[j].c_str());
+				size++;
+			}
+		}
+		inFile2.close();
+		//cout << "size" << size << endl;
+		joint_target = joint_temp.topLeftCorner(size, nb_of_joints_);
+		
+		return true;
+	}
+	else
+	{
+		cout << "Time out!!" << endl;
+		return false;
+	}
 }

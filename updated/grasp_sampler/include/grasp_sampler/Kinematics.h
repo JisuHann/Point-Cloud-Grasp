@@ -1,3 +1,5 @@
+#pragma once
+
 // ros includes
 #include <ros/package.h>
 #include <ros/node_handle.h>
@@ -10,6 +12,8 @@
 
 //msgs includes
 #include <geometry_msgs/Pose.h>
+#include <trajectory_msgs/JointTrajectory.h>
+#include <trajectory_msgs/JointTrajectoryPoint.h>
 
 //srv includes
 #include "task_assembly/door_open_planner.h"
@@ -21,6 +25,14 @@
 #include <kdl/chainfksolverpos_recursive.hpp>
 #include <kdl/chainiksolvervel_pinv.hpp>
 
+// motion planners
+#include "RRTFunction.h"
+#include "YamlConfig.h"
+
+// for generating trajectory
+#include "/home/dyros/trajectory_smoothing/include/Trajectory.h"
+#include "/home/dyros/trajectory_smoothing/include/Path.h"
+
 // pcl headers includes
 #include "pcl_headers.h"
 
@@ -29,8 +41,11 @@
 #include <iostream>
 #include <map>
 #include <random>
+#include <memory>
+#include <assert.h>
 
-// franka panda Header
+#include <ctime>
+
 
 using namespace RigidBodyDynamics;
 
@@ -42,11 +57,19 @@ class kinematics_sovler
    
     // Eigen::Matrix4f getCurT_BC();
 
-    void initializeData(task_assembly::door_open_planner::Request &req);
-    bool solveIK(geometry_msgs::Pose _goal_info);
+    // data initalize
+    void initializeData(task_assembly::door_open_planner::Request &req,geometry_msgs::Pose targetPose);
+
+    // kinematics solver
+    bool solveIK(Transform3d _target_ee_pose, Robotmodel& model);
     Eigen::Matrix4f solveFK(KDL::JntArray _joint_val);
+
+    // Dynamics solver
     // void solveInverseDynamics();
     // void solveFowardDynamics();
+
+    // trajectory generator
+    trajectory_msgs::JointTrajectory generateTrajectory();
 
     ////////////  inline Functions /////////////////////////
     inline Eigen::Matrix4f getT_BC_frame(){return Frame2Eigen(T_BC_Frame_);};
@@ -76,14 +99,16 @@ class kinematics_sovler
     std::string urdf_param_;
 
     private:
-
     void initModel();
     void calcReachability();
     //solve Grasp problem in given scence
     bool initializeIKparam(const std::string& base_link, const std::string& tip_link, const std::string& URDF_param);
-    //void computeReability();
 
     Eigen::Matrix4f Frame2Eigen(KDL::Frame &frame);
+
+    // motion planner
+    bool setupRRT(Eigen::VectorXd q_start, Eigen::VectorXd q_goal, Eigen::MatrixXd& joint_target);
+	bool solveRRTwithMultipleGoals(Eigen::VectorXd q_start, std::vector<Eigen::VectorXd> q_goal_set, Eigen::MatrixXd& joint_target);
 
     // arm state
 	unsigned int end_effector_id_;
@@ -115,9 +140,31 @@ class kinematics_sovler
 
     pcl::PointCloud <pcl::PointXYZRGB>::Ptr reachability_cloud_;
 
+    // motion_planner //
+
+    std::vector<int> body_id_collision_;
+	std::vector<Eigen::Vector3d> body_com_position_;
+
+    Transform3d target_pose_, init_pose_;
+	RRT rrt_;
+
+	Robotmodel rrt_model_;
+	Eigen::MatrixXd joint_target_, joint_target2_;
+
+    // Trajectory library // 
+	bool interpolate_path_;
+	Trajectory *trajectory_generator_;
+	double duration_;
+	Eigen::VectorXd maxAcceleration;
+	Eigen::VectorXd maxVelocity;
+	std::list<Eigen::VectorXd> wayPoints;
+    double playTime_ ;
+
+    /////////// Trajectory_msgs ////////////////
+    trajectory_msgs::JointTrajectory output_trajectory_;
+	trajectory_msgs::JointTrajectoryPoint trajectory_point_;
+
     //params
-    double eps = 5e-3;
-	double num_samples = 100;
     int nb_of_sampling_points_ = 150000;
     int nb_of_clusters_ =0;
 };

@@ -53,6 +53,7 @@ class handle_sampler
     inline pcl::PointCloud<pcl::PointXYZRGB>::Ptr getCloud(){return roi_cloud_;};
     inline void setGraspViusual(bool _sig){original_color_visualization_ = _sig;};
     inline bool IsGraspStable(){return IsGraspStable_;};
+    inline bool IsGraspExist(){return IsGraspExist_;};
 
     inline geometry_msgs::Pose getGraspResult(){return grasp_result_;};
     void InitRobotKinematics(KDL::JntArray _nominal, KDL::Chain _robot_chain);           //if kinect hang in panda
@@ -114,6 +115,7 @@ class handle_sampler
 
     bool original_color_visualization_;
     bool IsGraspStable_;
+    bool IsGraspExist_;
     int  detected_obj_num_;
     int  target_object_num_;
 

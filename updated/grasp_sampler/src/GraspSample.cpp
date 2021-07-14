@@ -17,6 +17,7 @@ rate_(_hz)
 
     // init params (Defalut)
     IsGraspStable_ = false;
+    IsGraspExist_ = false;
     original_color_visualization_=false;
     detected_obj_num_ =0;
     saveNum = 0;
@@ -77,6 +78,7 @@ void handle_sampler::cloud_cb (const sensor_msgs::PointCloud2ConstPtr& msg)
 
     grasp_.header.frame_id = msg->header.frame_id;
 
+    //std::cout<<"frame id "<<msg->header.frame_id<<std::endl;
     //std::cerr<<"frame id : "<<cloud_msgs_.header.frame_id<<std::endl; --> rgb_camer_link (Azure Kinect)
     roi_cloud_ = cloud_msg;
 
@@ -122,11 +124,13 @@ void handle_sampler::cloud_cb (const sensor_msgs::PointCloud2ConstPtr& msg)
 
 void handle_sampler::reigon_cb(const task_assembly::BoundingBoxes3dConstPtr &_objpose)
 {
+
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud (new pcl::PointCloud<pcl::PointXYZRGB>);
     detected_obj_num_ = _objpose->bounding_boxes.size();
     if( detected_obj_num_ <= 0)
     {
         std::cout<<"NO Object Detected"<<std::endl;
+        IsGraspExist_ = false;
         return;
     }
 
@@ -189,7 +193,7 @@ void handle_sampler::reigon_cb(const task_assembly::BoundingBoxes3dConstPtr &_ob
         return;
     }
 
-    for(unsigned int i = 0; i < graspPoints.size(); i++)
+    for(unsigned int i = 0; i < 1; i++) //graspPoints.size()
     {
         grasp_.type = visualization_msgs::Marker::ARROW;
         grasp_.action = visualization_msgs::Marker::ADD;
@@ -215,6 +219,8 @@ void handle_sampler::reigon_cb(const task_assembly::BoundingBoxes3dConstPtr &_ob
         grasps_.markers.push_back(grasp_);
     }
 
+    //if(IsGraspStable_)
+    IsGraspExist_ = true;
     // tmp
     grasp_result_ = graspPoints.at(0);
     std::cout<<"grasp configuration  x : "<<grasp_result_.position.x
@@ -470,7 +476,6 @@ std::vector<geometry_msgs::Pose> handle_sampler::getSolution(unsigned int _objNu
     cloud_visualization_.header = cloud_msgs_.header;
     handle_cloud_.publish(cloud_visualization_);
 
-
     // When you initialzie in switch-case you should use { }
     switch(result_.at(_objNum).door_type_) //result_.at(_objNum).door_type_
     {
@@ -582,6 +587,7 @@ std::vector<geometry_msgs::Pose> handle_sampler::getSolution(unsigned int _objNu
         handle_candidate.at(i).orientation.z = quat.z();
         handle_candidate.at(i).orientation.w = quat.w();
     }
+
 
 
     //////////////////  Corresspoding Gruping ///////////////////////////////////////////////

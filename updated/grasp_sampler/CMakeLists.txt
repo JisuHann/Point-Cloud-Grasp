@@ -56,8 +56,10 @@ set(SRCS
     src/Utils.cpp
     src/GraspSample.cpp
     src/arm_interface.cpp
-#    src/main.cpp
-#    src/graspCient.cpp
+
+    # Motion planners
+    src/ArmPlanner.cpp
+    src/RRTFunction.cpp
 )
 
 set(HEADS
@@ -69,6 +71,12 @@ set(HEADS
     include/${PROJECT_NAME}/YamlConfig.h
     include/${PROJECT_NAME}/GraspSample.h
     include/${PROJECT_NAME}/arm_interface.h
+
+    # Motio planners
+    include/${PROJECT_NAME}/ArmPlanner.h
+    include/${PROJECT_NAME}/NodeTree.h
+    include/${PROJECT_NAME}/RRTFunction.h
+    include/${PROJECT_NAME}/RRTNode.h
 )
 
 add_library(doorPlanner 
