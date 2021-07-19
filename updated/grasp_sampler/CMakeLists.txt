@@ -60,6 +60,9 @@ set(SRCS
     # Motion planners
     src/ArmPlanner.cpp
     src/RRTFunction.cpp
+
+    # Simulation  API
+    src/VrepBridge.cpp
 )
 
 set(HEADS
@@ -77,6 +80,9 @@ set(HEADS
     include/${PROJECT_NAME}/NodeTree.h
     include/${PROJECT_NAME}/RRTFunction.h
     include/${PROJECT_NAME}/RRTNode.h
+
+    # Simulation API
+    include/${PROJECT_NAME}/VrepBridge.h
 )
 
 add_library(doorPlanner 

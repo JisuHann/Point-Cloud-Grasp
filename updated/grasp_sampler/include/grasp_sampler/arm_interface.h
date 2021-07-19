@@ -9,6 +9,8 @@
 #include "Utils.h"
 #include "task_assembly/door_open_planner.h"
 
+#include "VrepBridge.h"
+
 class arm_controller_interface
 {
 public:
@@ -28,6 +30,7 @@ private:
     //custom solver
     kinematics_sovler* arm_kinematics_solver_;
     handle_sampler* door_handle_sampler_;       /// <=== Realtime?? Ehthernet Comm
+    sim_controller_interface* vrep_bridge_;
 
     unsigned int nb_of_joint_;
     
@@ -45,4 +48,7 @@ private:
     //////////// thread setting /////////////////////////////////////////////////
     // std::vector<std::thread> threads;
     // std::mutex mutex_;
+
+    // Simulation activation
+    bool simEnable; 
 };

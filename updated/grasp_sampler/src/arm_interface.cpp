@@ -6,8 +6,20 @@ hz_(_hz)
 {
     arm_kinematics_solver_ = new kinematics_sovler(_config);
     _nh.param("/urdf_param", arm_kinematics_solver_->urdf_param_, std::string("/robot_description"));
+    _nh.param("sim_enable", this->simEnable);
 
-    door_handle_sampler_ = new handle_sampler(nh_,hz_);
+    door_handle_sampler_ = new handle_sampler(nh_,hz_,this->simEnable);
+
+    if(simEnable)
+    {
+        std::cout<<"Simulation On"<<std::endl;
+        vrep_bridge_ = new sim_controller_interface(nh_,hz_);
+    }
+    else
+    {
+        std::cout<<"Simulation Off"<<std::endl;
+        vrep_bridge_ = NULL;
+    }
 
     service_ = nh_.advertiseService("/plane_door_grasp_motion",&arm_controller_interface::calcGraspPose,this);
     nb_of_joint_ = arm_kinematics_solver_->getNbOfJoint();
@@ -95,10 +107,10 @@ bool arm_controller_interface::calcGraspPose(task_assembly::door_open_planner::R
         output_message = "Planning success";
     }
     ROS_INFO("sending back response: [%s]", output_message.c_str() ); // res.q_trajectory.joint_names[0].c_str()
+
     return true;
 
     //res.grasp_pose = graspHandleResult;
-    return true;
 }
 
 // void arm_controller_interface::excute_srvThread()

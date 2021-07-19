@@ -1,6 +1,6 @@
 #include "../include/grasp_sampler/GraspSample.h"
 
-handle_sampler::handle_sampler(ros::NodeHandle &_nh,double _hz):
+handle_sampler::handle_sampler(ros::NodeHandle &_nh,double _hz,bool simEnable):
 rate_(_hz)
 {
     roi_cloud_pub_ = _nh.advertise<sensor_msgs::PointCloud2>("/sampler/object", 1);
@@ -8,8 +8,15 @@ rate_(_hz)
     grasp_pub_ = _nh.advertise<visualization_msgs::MarkerArray>("/grasp/candidate", 1);
     grasp_test = _nh.advertise<sensor_msgs::PointCloud2>("/grasp/test", 1);
 
-    yolo_detection_sub_ = _nh.subscribe("/darknet_ros_3d/bounding_boxes",1, &handle_sampler::reigon_cb, this);
-    kinect_cloud_sub_ = _nh.subscribe("/k4a/depth_registered/points",1, &handle_sampler::cloud_cb, this);
+    if(simEnable)
+    {
+
+    }
+    else
+    {
+        yolo_detection_sub_ = _nh.subscribe("/darknet_ros_3d/bounding_boxes",1, &handle_sampler::reigon_cb, this);
+        kinect_cloud_sub_ = _nh.subscribe("/k4a/depth_registered/points",1, &handle_sampler::cloud_cb, this);
+    }
 
     // allocate variable siz
     roi_cloud_ = pcl::PointCloud<pcl::PointXYZRGB>::Ptr(new pcl::PointCloud<pcl::PointXYZRGB>);

@@ -47,7 +47,7 @@ enum door_type{ HANDLE, STICK};
 class handle_sampler    
 {
     public:
-    handle_sampler(ros::NodeHandle &_nh,double _hz);
+    handle_sampler(ros::NodeHandle &_nh,double _hz,bool simEnable);
     ~handle_sampler(){};
 
     inline pcl::PointCloud<pcl::PointXYZRGB>::Ptr getCloud(){return roi_cloud_;};

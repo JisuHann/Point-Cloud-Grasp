@@ -3,6 +3,7 @@
 
   <param name="franka_arm_description" command="$(find xacro)/xacro.py '$(find franka_description)/robots/panda_arm.urdf.xacro'"/>
   <param name="urdf_param" value="/franka_arm_description"/> 
+  <param name="sim_enable" value= "true"/> <!--  use simulator? -->
 
   <node name="GraspSamplerServer" pkg="grasp_sampler" type="GraspSamplerServer" output="screen" >
     <param name="yaml_path" type="string" value="$(find grasp_sampler)/config/hw_param.yaml"/>
