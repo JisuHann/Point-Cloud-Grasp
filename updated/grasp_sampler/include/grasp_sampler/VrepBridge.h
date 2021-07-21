@@ -10,6 +10,7 @@
 #include <sensor_msgs/JointState.h>
 #include <sensor_msgs/Image.h>
 #include <std_msgs/Float32MultiArray.h>
+#include <std_msgs/Int32.h>
 
 // ros header
 #include <ros/ros.h>
@@ -35,11 +36,25 @@ class sim_controller_interface
 {
     public :
     sim_controller_interface(ros::NodeHandle &_nh,double _hz);
-    ~sim_controller_interface();
+    ~sim_controller_interface(){};
 
-    // ros CallBack
-    void sim_image_cb(const sensor_msgs::ImageConstPtr& img);
-    void sim_create_points(const std_msgs::Float32MultiArrayConstPtr& depth_img);
+    // sim synchronize
+    // void sim_status_cb(const std_msgs::Int32ConstPtr& msg);
+    // void sim_time_cb(const std_msgs::Float32ConstPtr& msg);
+
+    // void vrepStart();
+    // void vrepStop();
+    // void vrepStepTrigger();
+    // void vrepEnableSyncMode();
+    // void sim_step_done_cb(const std_msgs::BoolConstPtr& msg);   
+    // void vrepTargetConfig(const sensor_msgs::JointStateConstPtr& msg);
+
+    // // receive sim data
+    // void joint_cb(const sensor_msgs::JointStateConstPtr& msg);
+
+    // // ros CallBack
+    // void sim_image_cb(const sensor_msgs::ImageConstPtr& img);
+    // void sim_create_points(const std_msgs::Float32MultiArrayConstPtr& depth_img);
 
     private :
 
