@@ -1,0 +1,2 @@
+test Box Position
+x : +3.0620e-01     y:-1.3000e-01       z:+1.4866e+00

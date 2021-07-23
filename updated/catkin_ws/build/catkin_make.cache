@@ -1,0 +1,2 @@
+franka_description:grasp_sampler:task_assembly
+-DCATKIN_DEVEL_PREFIX=/home/min/catkin_ws/devel -DCMAKE_INSTALL_PREFIX=/home/min/catkin_ws/install -G Unix Makefiles

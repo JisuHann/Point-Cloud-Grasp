@@ -1,0 +1,8 @@
+prefix=/home/min/catkin_ws/devel
+
+Name: grasp_sampler
+Description: Description of grasp_sampler
+Version: 0.0.0
+Cflags: -I/home/min/catkin_ws/src/grasp_sampler/include -I/usr/include -I/opt/ros/melodic/share/orocos_kdl/cmake/../../../include -I/usr/include/eigen3
+Libs: -L${prefix}/lib -lgrasp_sampler /usr/lib/x86_64-linux-gnu/libboost_system.so /usr/lib/x86_64-linux-gnu/libboost_filesystem.so /usr/lib/x86_64-linux-gnu/libboost_thread.so /usr/lib/x86_64-linux-gnu/libboost_date_time.so /usr/lib/x86_64-linux-gnu/libboost_iostreams.so /usr/lib/x86_64-linux-gnu/libboost_serialization.so /usr/lib/x86_64-linux-gnu/libboost_chrono.so /usr/lib/x86_64-linux-gnu/libboost_atomic.so /usr/lib/x86_64-linux-gnu/libboost_regex.so /usr/lib/x86_64-linux-gnu/libpthread.so /opt/ros/melodic/lib/liborocos-kdl.so.1.4.0
+Requires: roscpp std_msgs sensor_msgs geometry_msgs trajectory_msgs task_assembly kdl_parser urdf

@@ -1,0 +1,8 @@
+prefix=/home/min/catkin_ws/install
+
+Name: task_assembly
+Description: Description of task_assembly
+Version: 0.0.0
+Cflags: -I${prefix}/include
+Libs: -L${prefix}/lib 
+Requires: message_runtime std_msgs geometry_msgs sensor_msgs trajectory_msgs
